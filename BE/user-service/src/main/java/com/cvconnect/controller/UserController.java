@@ -35,15 +35,15 @@ public class UserController {
 
     @GetMapping("/my-info/{roleId}")
     @Operation(summary = "Get my info by role ID")
-    public ResponseEntity<Response<UserDto>> getMyInfo(@PathVariable Long roleId) {
+    public ResponseEntity<Response<UserDto>> getMyInfo(@PathVariable("roleId") Long roleId) {
         return ResponseUtils.success(userService.getMyInfo(roleId));
     }
 
     @InternalRequest
     @GetMapping("/internal/check-org-user-role/{userId}/{roleCode}/{orgId}")
     @Operation(summary = "Check if user has specific role in an organization")
-    public ResponseEntity<Response<Boolean>> checkOrgUserRole(@PathVariable Long userId, @PathVariable String roleCode,
-                                                              @PathVariable Long orgId) {
+    public ResponseEntity<Response<Boolean>> checkOrgUserRole(@PathVariable("userId") Long userId, @PathVariable("roleCode") String roleCode,
+                                                              @PathVariable("orgId") Long orgId) {
         return ResponseUtils.success(userService.checkOrgUserRole(userId, roleCode, orgId));
     }
 
@@ -51,14 +51,14 @@ public class UserController {
     @GetMapping("/get-by-role-code-org/{roleCode}")
     @Operation(summary = "Get users by role code for organization members")
     @PreAuthorize("hasAnyAuthority('ORG_MEMBER:VIEW', 'ORGANIZATION')")
-    public ResponseEntity<Response<List<UserDto>>> getUsersByRoleCodeOrg(@PathVariable String roleCode) {
+    public ResponseEntity<Response<List<UserDto>>> getUsersByRoleCodeOrg(@PathVariable("roleCode") String roleCode) {
         return ResponseUtils.success(userService.getUsersByRoleCodeOrg(roleCode));
     }
 
     @InternalRequest
     @GetMapping("/internal/get-by-id/{userId}")
     @Operation(summary = "Get user by ID")
-    public ResponseEntity<Response<UserDto>> getUserById(@PathVariable Long userId) {
+    public ResponseEntity<Response<UserDto>> getUserById(@PathVariable("userId") Long userId) {
         return ResponseUtils.success(userService.getUserById(userId));
     }
 
@@ -72,13 +72,13 @@ public class UserController {
     @InternalRequest
     @GetMapping("/internal/get-by-role-code-org-id/{roleCode}/{orgId}")
     @Operation(summary = "Get users by role code for organization members")
-    public ResponseEntity<Response<List<UserDto>>> getUsersByRoleCodeOrgId(@PathVariable String roleCode, @PathVariable Long orgId) {
+    public ResponseEntity<Response<List<UserDto>>> getUsersByRoleCodeOrgId(@PathVariable("roleCode") String roleCode, @PathVariable("orgId") Long orgId) {
         return ResponseUtils.success(userService.getUsersByRoleCodeOrg(roleCode, orgId));
     }
 
     @PutMapping("/role-default/{roleId}")
     @Operation(summary = "Set default role for users")
-    public ResponseEntity<Response<Void>> setDefaultRole(@PathVariable Long roleId) {
+    public ResponseEntity<Response<Void>> setDefaultRole(@PathVariable("roleId") Long roleId) {
         userService.setDefaultRole(roleId);
         return ResponseUtils.success(null, localizationUtils.getLocalizedMessage(MessageConstants.UPDATE_SUCCESSFULLY));
     }
@@ -127,14 +127,14 @@ public class UserController {
     @GetMapping("/user-detail-for-system-admin/{userId}")
     @Operation(summary = "Get user detail for system admin by user ID")
     @PreAuthorize("hasAnyAuthority('SYSTEM_ADMIN', 'USER:VIEW')")
-    public ResponseEntity<Response<UserDto>> getUserDetailForSystemAdmin(@PathVariable Long userId) {
+    public ResponseEntity<Response<UserDto>> getUserDetailForSystemAdmin(@PathVariable("userId") Long userId) {
         return ResponseUtils.success(userService.userDetailForSystemAdmin(userId));
     }
 
     @PutMapping("/assign-role-system-admin/{userId}")
     @Operation(summary = "Assign admin system role to user")
     @PreAuthorize("hasAnyAuthority('SYSTEM_ADMIN', 'USER:UPDATE')")
-    public ResponseEntity<Response<Void>> assignAdminSystemRole(@PathVariable Long userId) {
+    public ResponseEntity<Response<Void>> assignAdminSystemRole(@PathVariable("userId") Long userId) {
         userService.assignAdminSystemRole(userId);
         return ResponseUtils.success(null, localizationUtils.getLocalizedMessage(MessageConstants.UPDATE_SUCCESSFULLY));
     }
@@ -142,7 +142,7 @@ public class UserController {
     @PutMapping("/retrieve-role-system-admin/{userId}")
     @Operation(summary = "Retrieve admin system role from user")
     @PreAuthorize("hasAnyAuthority('SYSTEM_ADMIN', 'USER:UPDATE')")
-    public ResponseEntity<Response<Void>> retrieveAdminSystemRole(@PathVariable Long userId) {
+    public ResponseEntity<Response<Void>> retrieveAdminSystemRole(@PathVariable("userId") Long userId) {
         userService.retrieveAdminSystemRole(userId);
         return ResponseUtils.success(null, localizationUtils.getLocalizedMessage(MessageConstants.UPDATE_SUCCESSFULLY));
     }

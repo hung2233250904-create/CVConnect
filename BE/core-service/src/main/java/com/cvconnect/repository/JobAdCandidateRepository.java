@@ -104,7 +104,7 @@ public interface JobAdCandidateRepository extends JpaRepository<JobAdCandidate, 
         from CandidateInfoApply as cia
         join JobAdCandidate as jac on jac.candidateInfoId = cia.id
         join JobAd as ja on ja.id = jac.jobAdId
-        join AttachFile as af on af.id = cia.cvFileId
+        left join AttachFile as af on af.id = cia.cvFileId
         left join CandidateSummaryOrg as cso on cso.candidateInfoId = cia.id and cso.orgId = :orgId
         left join Level as l on l.id = cso.levelId
         left join CalendarCandidateInfo cci on cci.candidateInfoId = cia.id

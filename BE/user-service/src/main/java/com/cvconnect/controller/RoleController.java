@@ -47,7 +47,7 @@ public class RoleController {
     @PutMapping("/update/{id}")
     @Operation(summary = "Update roles")
     @PreAuthorize("hasAnyAuthority('USER_GROUP:UPDATE')")
-    public ResponseEntity<Response<IDResponse<Long>>> updateRoles(@PathVariable Long id, @Valid @RequestBody RoleRequest request) {
+    public ResponseEntity<Response<IDResponse<Long>>> updateRoles(@PathVariable("id") Long id, @Valid @RequestBody RoleRequest request) {
         request.setId(id);
         return ResponseUtils.success(roleService.updateRoles(request), localizationUtils.getLocalizedMessage(MessageConstants.UPDATE_SUCCESSFULLY));
     }
@@ -77,7 +77,7 @@ public class RoleController {
     @GetMapping("/detail/{id}")
     @Operation(summary = "Get role detail")
     @PreAuthorize("hasAnyAuthority('USER_GROUP:VIEW')")
-    public ResponseEntity<Response<RoleDto>> getDetail(@PathVariable Long id) {
+    public ResponseEntity<Response<RoleDto>> getDetail(@PathVariable("id") Long id) {
         return ResponseUtils.success(roleService.getDetail(id));
     }
 }

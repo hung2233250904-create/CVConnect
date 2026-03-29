@@ -21,14 +21,14 @@ public class MenuController {
 
     @GetMapping("/menu-by-role/{roleId}")
     @Operation(summary = "Get menus by role ID")
-    public ResponseEntity<Response<List<MenuMetadata>>> getMenusByRoleId(@PathVariable Long roleId) {
+    public ResponseEntity<Response<List<MenuMetadata>>> getMenusByRoleId(@PathVariable("roleId") Long roleId) {
         return ResponseUtils.success(menuService.getMenusByRoleId(roleId));
     }
 
     @GetMapping("/all-menus")
     @Operation(summary = "Get all menus")
     @PreAuthorize("hasAnyAuthority('USER_GROUP:VIEW')")
-    public ResponseEntity<Response<List<MenuMetadata>>> getAllMenus(@RequestParam(required = true) MemberType memberType) {
+    public ResponseEntity<Response<List<MenuMetadata>>> getAllMenus(@RequestParam(name = "memberType", required = true) MemberType memberType) {
         return ResponseUtils.success(menuService.getAllMenus(memberType));
     }
 }

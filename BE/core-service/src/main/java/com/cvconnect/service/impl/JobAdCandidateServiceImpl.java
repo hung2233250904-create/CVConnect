@@ -70,6 +70,8 @@ public class JobAdCandidateServiceImpl implements JobAdCandidateService {
     private KafkaUtils kafkaUtils;
     @Autowired
     private OrgService orgService;
+    @Autowired
+    private CloudinaryService cloudinaryService;
 
     @Override
     @Transactional
@@ -128,57 +130,70 @@ public class JobAdCandidateServiceImpl implements JobAdCandidateService {
 
         // send email to candidate
         CandidateInfoApplyDto candidateInfoApplyDto = candidateInfoApplyService.getById(candidateInfoApplyId);
-        if(jobAdDto.getIsAutoSendEmail()){
-            EmailTemplateDto emailTemplateDto = restTemplateClient.getEmailTemplateById(jobAdDto.getEmailTemplateId());
-            if(!ObjectUtils.isEmpty(emailTemplateDto)){
-                UserDto userDto = restTemplateClient.getUser(jobAdDto.getHrContactId());
-                if(ObjectUtils.isEmpty(userDto) || ObjectUtils.isEmpty(candidateInfoApplyDto)){
-                    throw new AppException(CommonErrorCode.ERROR);
-                }
-                String emailHr = userDto.getEmail();
-                String emailCandidate = candidateInfoApplyDto.getEmail();
-                String subject = emailTemplateDto.getSubject();
+        try {
+            if(jobAdDto.getIsAutoSendEmail()){
+                EmailTemplateDto emailTemplateDto = restTemplateClient.getEmailTemplateById(jobAdDto.getEmailTemplateId());
+                if(!ObjectUtils.isEmpty(emailTemplateDto)){
+                    UserDto userDto = restTemplateClient.getUser(jobAdDto.getHrContactId());
+                    boolean canSend = !ObjectUtils.isEmpty(userDto)
+                            && !ObjectUtils.isEmpty(candidateInfoApplyDto)
+                            && !ObjectUtils.isEmpty(userDto.getEmail())
+                            && !ObjectUtils.isEmpty(candidateInfoApplyDto.getEmail());
+                    if(canSend){
+                        String emailHr = userDto.getEmail();
+                        String emailCandidate = candidateInfoApplyDto.getEmail();
+                        String subject = emailTemplateDto.getSubject();
 
-                // replace placeholders
-                String template = emailTemplateDto.getBody();
-                List<String> placeholders = emailTemplateDto.getPlaceholderCodes();
-                DataReplacePlaceholder dataReplacePlaceholder = DataReplacePlaceholder.builder()
-                        .positionId(jobAdDto.getPositionId())
-                        .jobAdName(jobAdDto.getTitle())
-                        .jobAdProcessName(ProcessTypeEnum.APPLY.name())
-                        .orgId(jobAdDto.getOrgId())
-                        .candidateName(candidateInfoApplyDto.getFullName())
-                        .hrName(userDto.getFullName())
-                        .hrEmail(emailHr)
-                        .hrPhone(userDto.getPhoneNumber())
-                        .build();
-                String body = replacePlaceholder.replacePlaceholder(template, placeholders, dataReplacePlaceholder);
-                SendEmailDto sendEmailDto = SendEmailDto.builder()
-                        .sender(emailHr)
-                        .recipients(List.of(emailCandidate))
-                        .subject(subject)
-                        .body(body)
-                        .candidateInfoId(candidateInfoApplyId)
-                        .jobAdId(jobAdCandidate.getJobAdId())
-                        .orgId(jobAdDto.getOrgId())
-                        .emailTemplateId(jobAdDto.getEmailTemplateId())
-                        .build();
-                sendEmailService.sendEmailWithBody(sendEmailDto);
+                        // replace placeholders
+                        String template = emailTemplateDto.getBody();
+                        List<String> placeholders = emailTemplateDto.getPlaceholderCodes();
+                        DataReplacePlaceholder dataReplacePlaceholder = DataReplacePlaceholder.builder()
+                                .positionId(jobAdDto.getPositionId())
+                                .jobAdName(jobAdDto.getTitle())
+                                .jobAdProcessName(ProcessTypeEnum.APPLY.name())
+                                .orgId(jobAdDto.getOrgId())
+                                .candidateName(candidateInfoApplyDto.getFullName())
+                                .hrName(userDto.getFullName())
+                                .hrEmail(emailHr)
+                                .hrPhone(userDto.getPhoneNumber())
+                                .build();
+                        String body = replacePlaceholder.replacePlaceholder(template, placeholders, dataReplacePlaceholder);
+                        SendEmailDto sendEmailDto = SendEmailDto.builder()
+                                .sender(emailHr)
+                                .recipients(List.of(emailCandidate))
+                                .subject(subject)
+                                .body(body)
+                                .candidateInfoId(candidateInfoApplyId)
+                                .jobAdId(jobAdCandidate.getJobAdId())
+                                .orgId(jobAdDto.getOrgId())
+                                .emailTemplateId(jobAdDto.getEmailTemplateId())
+                                .build();
+                        sendEmailService.sendEmailWithBody(sendEmailDto);
+                    }
+                }
             }
+        } catch (Exception ignored) {
+            // Do not block candidate apply flow when optional email delivery fails.
         }
 
         // send notification to hr
-        NotifyTemplate template = NotifyTemplate.CANDIDATE_APPLY_JOB_AD;
-        NotificationDto notification = NotificationDto.builder()
-                .title(String.format(template.getTitle()))
-                .message(String.format(template.getMessage(), candidateInfoApplyDto.getFullName(), jobAdDto.getTitle()))
-                .senderId(userId)
-                .receiverIds(List.of(jobAdDto.getHrContactId()))
-                .receiverType(MemberType.ORGANIZATION.getName())
-                .type(Constants.NotificationType.USER)
-                .redirectUrl(Constants.Path.JOB_AD_CANDIDATE_DETAIL + "/" + candidateInfoApplyId)
-                .build();
-        kafkaUtils.sendWithJson(Constants.KafkaTopic.NOTIFICATION, notification);
+        try {
+            if(!ObjectUtils.isEmpty(jobAdDto.getHrContactId())) {
+                NotifyTemplate template = NotifyTemplate.CANDIDATE_APPLY_JOB_AD;
+                NotificationDto notification = NotificationDto.builder()
+                        .title(String.format(template.getTitle()))
+                        .message(String.format(template.getMessage(), candidateInfoApplyDto.getFullName(), jobAdDto.getTitle()))
+                        .senderId(userId)
+                        .receiverIds(List.of(jobAdDto.getHrContactId()))
+                        .receiverType(MemberType.ORGANIZATION.getName())
+                        .type(Constants.NotificationType.USER)
+                        .redirectUrl(Constants.Path.JOB_AD_CANDIDATE_DETAIL + "/" + candidateInfoApplyId)
+                        .build();
+                kafkaUtils.sendWithJson(Constants.KafkaTopic.NOTIFICATION, notification);
+            }
+        } catch (Exception ignored) {
+            // Do not block candidate apply flow when notification delivery fails.
+        }
 
         return IDResponse.<Long>builder()
                 .id(jobAdCandidate.getId())
@@ -288,15 +303,33 @@ public class JobAdCandidateServiceImpl implements JobAdCandidateService {
             }
         }
 
+        String resolvedCvUrl = projection.getCvFileUrl();
+        if (projection.getCvFileId() != null) {
+            try {
+                List<AttachFileDto> cvFiles = attachFileService.getAttachFiles(List.of(projection.getCvFileId()));
+                if (!ObjectUtils.isEmpty(cvFiles) && cvFiles.get(0) != null) {
+                    String signedUrl = cloudinaryService.generateSignedUrl(cvFiles.get(0));
+                    if (!ObjectUtils.isEmpty(signedUrl)) {
+                        resolvedCvUrl = signedUrl;
+                    } else if (!ObjectUtils.isEmpty(cvFiles.get(0).getSecureUrl())) {
+                        resolvedCvUrl = cvFiles.get(0).getSecureUrl();
+                    }
+                }
+            } catch (Exception ignored) {
+                // Keep projection URL as fallback to avoid breaking detail response.
+            }
+        }
+
         CandidateInfoApplyDto candidateInfoApply = CandidateInfoApplyDto.builder()
                                     .id(projection.getId())
                                     .fullName(projection.getFullName())
                                     .email(projection.getEmail())
                                     .phone(projection.getPhone())
                                     .candidateId(projection.getCandidateId())
+                                    .cvUrl(resolvedCvUrl)
                                     .attachFile(AttachFileDto.builder()
                                             .id(projection.getCvFileId())
-                                            .secureUrl(projection.getCvFileUrl())
+                                            .secureUrl(resolvedCvUrl)
                                             .build()
                                     )
                                     .coverLetter(projection.getCoverLetter())
@@ -893,6 +926,7 @@ public class JobAdCandidateServiceImpl implements JobAdCandidateService {
                     UserDto hrContact = hrContacts.get(p.getHrContactId());
                     OrgDto org = orgMap.get(p.getOrgId());
                     AttachFileDto cvFile = attachFileService.getAttachFiles(List.of(p.getCvFileId())).get(0);
+                    String cvUrl = cloudinaryService.generateSignedUrl(cvFile);
                     return JobAdCandidateDto.builder()
                             .id(p.getJobAdCandidateId())
                             .candidateStatusDto(CandidateStatus.getCandidateStatusDto(p.getCandidateStatus()))
@@ -921,7 +955,7 @@ public class JobAdCandidateServiceImpl implements JobAdCandidateService {
                                     .email(p.getEmail())
                                     .phone(p.getPhone())
                                     .coverLetter(p.getCoverLetter())
-                                    .cvUrl(cvFile.getSecureUrl())
+                                    .cvUrl(cvUrl)
                                     .candidateId(p.getCandidateId())
                                     .build())
                             .hasMessageUnread(conversationMap.get(p.getJobAdId()) != null)
@@ -977,6 +1011,7 @@ public class JobAdCandidateServiceImpl implements JobAdCandidateService {
                 .map(p -> {
                     OrgDto org = orgMap.get(p.getOrgId());
                     AttachFileDto cvFile = attachFileService.getAttachFiles(List.of(p.getCvFileId())).get(0);
+                    String cvUrl = cloudinaryService.generateSignedUrl(cvFile);
                     ConversationDto conversationDto = conversationMap.get(p.getJobAdId());
 
                     boolean hasMessageUnread = false;
@@ -1014,7 +1049,7 @@ public class JobAdCandidateServiceImpl implements JobAdCandidateService {
                                     .email(p.getEmail())
                                     .phone(p.getPhone())
                                     .coverLetter(p.getCoverLetter())
-                                    .cvUrl(cvFile.getSecureUrl())
+                                    .cvUrl(cvUrl)
                                     .candidateId(p.getCandidateId())
                                     .build())
                             .hasMessageUnread(hasMessageUnread)
@@ -1173,17 +1208,20 @@ public class JobAdCandidateServiceImpl implements JobAdCandidateService {
 
     private JobAdDto validateJobAd(Long jobAdId) {
         JobAdDto jobAdDto = jobAdService.findById(jobAdId);
-        Long userOrgId = WebUtils.getCurrentOrgId();
-        if(jobAdDto.getOrgId().equals(userOrgId)){
-            throw new AppException(CoreErrorCode.CANNOT_APPLY_OWN_ORG_JOB_AD);
-        }
         if(ObjectUtils.isEmpty(jobAdDto)){
             throw new AppException(CoreErrorCode.JOB_AD_NOT_FOUND);
         }
-        if(jobAdDto.getDueDate().isBefore(ZonedDateTime.now(CommonConstants.ZONE.UTC).toInstant())){
+        Long userOrgId = WebUtils.getCurrentOrgId();
+        if(Objects.equals(jobAdDto.getOrgId(), userOrgId)){
+            throw new AppException(CoreErrorCode.CANNOT_APPLY_OWN_ORG_JOB_AD);
+        }
+        if(ObjectUtils.isEmpty(jobAdDto.getDueDate())
+                || jobAdDto.getDueDate().isBefore(ZonedDateTime.now(CommonConstants.ZONE.UTC).toInstant())){
             throw new AppException(CoreErrorCode.JOB_AD_EXPIRED);
         }
-        JobAdStatus status = JobAdStatus.getJobAdStatus(jobAdDto.getJobAdStatus());
+        JobAdStatus status = ObjectUtils.isEmpty(jobAdDto.getJobAdStatus())
+                ? null
+                : JobAdStatus.getJobAdStatus(jobAdDto.getJobAdStatus());
         if(ObjectUtils.isEmpty(status) || !JobAdStatus.OPEN.equals(status)){
             throw new AppException(CoreErrorCode.JOB_AD_STOP_RECRUITMENT);
         }

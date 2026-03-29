@@ -80,7 +80,7 @@ public class OrgMemberController {
     @GetMapping("/org-member-info/{userId}")
     @Operation(summary = "Get organization member info by user ID")
     @PreAuthorize("hasAnyAuthority('ORG_MEMBER:VIEW')")
-    public ResponseEntity<Response<OrgMemberDto>> getOrgMemberInfo(@PathVariable Long userId) {
+    public ResponseEntity<Response<OrgMemberDto>> getOrgMemberInfo(@PathVariable("userId") Long userId) {
         return ResponseUtils.success(orgMemberService.orgMemberInfo(userId));
     }
 
