@@ -106,13 +106,66 @@ public class CloudinaryServiceImpl implements CloudinaryService {
                 resourceType = "auto";
             }
 
-            return cloudinary.url()
+            String deliveryType = attachFileDto.getType();
+            if (deliveryType == null || deliveryType.isEmpty()) {
+                deliveryType = "upload";
+            }
+
+            String ext = attachFileDto.getExtension() != null ? attachFileDto.getExtension().toLowerCase() : "";
+            String format = attachFileDto.getFormat();
+            if ((format == null || format.isEmpty()) && !ext.isEmpty()) {
+                format = ext;
+            }
+
+            com.cloudinary.Url signedUrlBuilder = cloudinary.url()
                     .secure(true)
                     .signed(true)
                     .resourceType(resourceType)
-                    .generate(attachFileDto.getPublicId());
+                    .type(deliveryType);
+
+            if (format != null && !format.isEmpty()) {
+                signedUrlBuilder = signedUrlBuilder.format(format);
+            }
+
+            return signedUrlBuilder.generate(attachFileDto.getPublicId());
         } catch (Exception ignored) {
             return attachFileDto.getSecureUrl();
+        }
+    }
+
+    @Override
+    public String generatePrivateDownloadUrl(AttachFileDto attachFileDto) {
+        if (attachFileDto == null || attachFileDto.getPublicId() == null || attachFileDto.getPublicId().isEmpty()) {
+            return null;
+        }
+
+        try {
+            String resourceType = attachFileDto.getResourceType();
+            if (resourceType == null || resourceType.isEmpty()) {
+                resourceType = "auto";
+            }
+
+            String deliveryType = attachFileDto.getType();
+            if (deliveryType == null || deliveryType.isEmpty()) {
+                deliveryType = "upload";
+            }
+
+            String format = attachFileDto.getFormat();
+            if ((format == null || format.isEmpty()) && attachFileDto.getExtension() != null && !attachFileDto.getExtension().isEmpty()) {
+                format = attachFileDto.getExtension().toLowerCase();
+            }
+
+            return cloudinary.privateDownload(
+                    attachFileDto.getPublicId(),
+                    format,
+                    ObjectUtils.asMap(
+                            "resource_type", resourceType,
+                            "type", deliveryType,
+                            "attachment", false
+                    )
+            );
+        } catch (Exception ignored) {
+            return null;
         }
     }
 

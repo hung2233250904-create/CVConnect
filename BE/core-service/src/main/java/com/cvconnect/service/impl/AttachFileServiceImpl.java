@@ -26,6 +26,7 @@ import java.io.ByteArrayInputStream;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -71,19 +72,65 @@ public class AttachFileServiceImpl implements AttachFileService {
         AttachFile attachFile = attachFileRepository.findById(id)
                 .orElseThrow(() -> new AppException(CoreErrorCode.ATTACH_FILE_NOT_FOUND));
 
-        URI uri = URI.create(attachFile.getSecureUrl());
-        ResponseEntity<byte[]> responseEntity = restTemplate.exchange(uri, HttpMethod.GET, null, byte[].class);
-        if(responseEntity.getStatusCode() != HttpStatus.OK){
+        AttachFileDto attachFileDto = ObjectMapperUtils.convertToObject(attachFile, AttachFileDto.class);
+
+        List<String> candidateUrls = new ArrayList<>();
+        String privateDownloadUrl = cloudinaryService.generatePrivateDownloadUrl(attachFileDto);
+        if (privateDownloadUrl != null && !privateDownloadUrl.isBlank()) {
+            candidateUrls.add(privateDownloadUrl);
+        }
+        String signedUrl = cloudinaryService.generateSignedUrl(attachFileDto);
+        if (signedUrl != null && !signedUrl.isBlank()) {
+            candidateUrls.add(signedUrl);
+        }
+        if (attachFile.getSecureUrl() != null && !attachFile.getSecureUrl().isBlank()) {
+            candidateUrls.add(attachFile.getSecureUrl());
+        }
+        if (attachFile.getUrl() != null && !attachFile.getUrl().isBlank()) {
+            candidateUrls.add(attachFile.getUrl());
+        }
+
+        byte[] fileBytes = null;
+        for (String fileUrl : candidateUrls) {
+            try {
+                URI uri = URI.create(fileUrl);
+                ResponseEntity<byte[]> responseEntity = restTemplate.exchange(uri, HttpMethod.GET, null, byte[].class);
+                if (responseEntity.getStatusCode() == HttpStatus.OK && responseEntity.getBody() != null && responseEntity.getBody().length > 0) {
+                    fileBytes = responseEntity.getBody();
+                    break;
+                }
+            } catch (Exception ignored) {
+                // Try next URL candidate.
+            }
+        }
+
+        if (fileBytes == null) {
             throw new AppException(CoreErrorCode.DOWNLOAD_FILE_FAILED);
         }
 
-        ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(responseEntity.getBody());
+        ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(fileBytes);
         String encodedFileName = URLEncoder.encode(attachFile.getOriginalFilename(), StandardCharsets.UTF_8);
         return DownloadFileDto.builder()
                 .attachFileId(attachFile.getId())
                 .filename(encodedFileName)
+                .contentType(resolveContentType(attachFile.getExtension()))
                 .byteArrayInputStream(byteArrayInputStream)
                 .build();
+    }
+
+    private String resolveContentType(String extension) {
+        if (extension == null) {
+            return "application/octet-stream";
+        }
+
+        return switch (extension.toLowerCase()) {
+            case "pdf" -> "application/pdf";
+            case "doc" -> "application/msword";
+            case "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            case "jpg", "jpeg" -> "image/jpeg";
+            case "png" -> "image/png";
+            default -> "application/octet-stream";
+        };
     }
 
     @Override

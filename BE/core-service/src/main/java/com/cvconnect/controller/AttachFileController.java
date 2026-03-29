@@ -11,6 +11,9 @@ import nmquan.commonlib.dto.response.Response;
 import nmquan.commonlib.utils.LocalizationUtils;
 import nmquan.commonlib.utils.ResponseUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -70,5 +73,22 @@ public class AttachFileController {
     public ResponseEntity<Response<Void>> deleteAttachFile(@RequestBody List<Long> ids) {
         attachFileService.deleteByIds(ids);
         return ResponseUtils.success(null, localizationUtils.getLocalizedMessage(MessageConstants.DELETE_SUCCESSFULLY));
+    }
+
+    @GetMapping("/download/{id}")
+    @Operation(summary = "Download Attach File")
+    public ResponseEntity<InputStreamResource> downloadAttachFile(@PathVariable("id") Long id) {
+        var file = attachFileService.download(id);
+        MediaType mediaType;
+        try {
+            mediaType = MediaType.parseMediaType(file.getContentType());
+        } catch (Exception ignored) {
+            mediaType = MediaType.APPLICATION_OCTET_STREAM;
+        }
+
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename*=UTF-8''" + file.getFilename())
+                .body(new InputStreamResource(file.getByteArrayInputStream()));
     }
 }

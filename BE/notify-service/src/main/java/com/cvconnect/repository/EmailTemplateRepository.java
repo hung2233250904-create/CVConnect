@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -13,10 +14,10 @@ import java.util.List;
 @Repository
 public interface EmailTemplateRepository extends JpaRepository<EmailTemplate, Long> {
     @Query("SELECT CASE WHEN COUNT(e) > 0 THEN true ELSE false END FROM EmailTemplate e WHERE e.code = :code AND e.orgId = :orgId")
-    boolean existsByCodeAndOrgId(String code, Long orgId);
+        boolean existsByCodeAndOrgId(@Param("code") String code, @Param("orgId") Long orgId);
 
     @Query("SELECT DISTINCT e FROM EmailTemplate e WHERE e.id IN :ids AND e.orgId = :orgId")
-    List<EmailTemplate> findByIdsAndOrgId(List<Long> ids, Long orgId);
+        List<EmailTemplate> findByIdsAndOrgId(@Param("ids") List<Long> ids, @Param("orgId") Long orgId);
 
     @Query("SELECT et FROM EmailTemplate et WHERE " +
             "(:#{#request.code} IS NULL OR LOWER(et.code) LIKE LOWER(CONCAT('%', :#{#request.code}, '%'))) " +
@@ -31,11 +32,11 @@ public interface EmailTemplateRepository extends JpaRepository<EmailTemplate, Lo
             "AND (:#{#request.updatedBy} IS NULL OR LOWER(et.updatedBy) LIKE LOWER(CONCAT('%', :#{#request.updatedBy}, '%'))) " +
             "AND (:#{#request.orgId} IS NULL OR et.orgId = :#{#request.orgId})"
     )
-    Page<EmailTemplate> filter(EmailTemplateFilterRequest request, Pageable pageable);
+        Page<EmailTemplate> filter(@Param("request") EmailTemplateFilterRequest request, Pageable pageable);
 
     @Query("SELECT et FROM EmailTemplate et " +
             "WHERE et.orgId = :orgId " +
             "AND (:active IS NULL OR et.isActive = :active)")
-    List<EmailTemplate> findByOrgIdAndIsActive(Long orgId, Boolean active);
+        List<EmailTemplate> findByOrgIdAndIsActive(@Param("orgId") Long orgId, @Param("active") Boolean active);
 
 }

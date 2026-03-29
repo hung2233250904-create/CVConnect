@@ -17,6 +17,7 @@ import java.io.ByteArrayInputStream;
 public class DownloadFileDto {
     private Long attachFileId;
     private String filename;
+    private String contentType;
     private ByteArrayInputStream byteArrayInputStream;
     private InputStreamResource resource;
 }

@@ -304,10 +304,12 @@ public class JobAdCandidateServiceImpl implements JobAdCandidateService {
         }
 
         String resolvedCvUrl = projection.getCvFileUrl();
+        AttachFileDto resolvedCvFile = null;
         if (projection.getCvFileId() != null) {
             try {
                 List<AttachFileDto> cvFiles = attachFileService.getAttachFiles(List.of(projection.getCvFileId()));
                 if (!ObjectUtils.isEmpty(cvFiles) && cvFiles.get(0) != null) {
+                    resolvedCvFile = cvFiles.get(0);
                     String signedUrl = cloudinaryService.generateSignedUrl(cvFiles.get(0));
                     if (!ObjectUtils.isEmpty(signedUrl)) {
                         resolvedCvUrl = signedUrl;
@@ -327,11 +329,25 @@ public class JobAdCandidateServiceImpl implements JobAdCandidateService {
                                     .phone(projection.getPhone())
                                     .candidateId(projection.getCandidateId())
                                     .cvUrl(resolvedCvUrl)
-                                    .attachFile(AttachFileDto.builder()
+                                        .attachFile(resolvedCvFile != null
+                                            ? AttachFileDto.builder()
+                                            .id(resolvedCvFile.getId())
+                                            .originalFilename(resolvedCvFile.getOriginalFilename())
+                                            .baseFilename(resolvedCvFile.getBaseFilename())
+                                            .extension(resolvedCvFile.getExtension())
+                                            .filename(resolvedCvFile.getFilename())
+                                            .format(resolvedCvFile.getFormat())
+                                            .resourceType(resolvedCvFile.getResourceType())
+                                            .secureUrl(resolvedCvUrl)
+                                            .type(resolvedCvFile.getType())
+                                            .url(resolvedCvFile.getUrl())
+                                            .publicId(resolvedCvFile.getPublicId())
+                                            .folder(resolvedCvFile.getFolder())
+                                            .build()
+                                            : AttachFileDto.builder()
                                             .id(projection.getCvFileId())
                                             .secureUrl(resolvedCvUrl)
-                                            .build()
-                                    )
+                                            .build())
                                     .coverLetter(projection.getCoverLetter())
                                     .candidateSummaryOrg(CandidateSummaryOrgDto.builder()
                                             .level(LevelDto.builder()

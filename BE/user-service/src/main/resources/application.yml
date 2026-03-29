@@ -48,7 +48,7 @@ server:
         path: /
   host_redis: ${REDIS_HOST:localhost}
   port_redis: ${REDIS_PORT:6379}
-  email-admin : nnmhqn2003@gmail.com
+  email-admin : nguyenhung.250904@gmail.com
   user_service: http://${HOST_USER_SERVICE:localhost}:${PORT_USER_SERVICE:8080}/user
   notify_service: http://${HOST_NOTIFY_SERVICE:localhost}:${PORT_NOTIFY_SERVICE:8081}/notify
   core_service: http://${HOST_CORE_SERVICE:localhost}:${PORT_CORE_SERVICE:8082}/core
