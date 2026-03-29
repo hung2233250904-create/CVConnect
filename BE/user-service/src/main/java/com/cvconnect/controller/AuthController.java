@@ -64,9 +64,9 @@ public class AuthController {
     // public API
     @PostMapping("/register-org-admin")
     @Operation(summary = "Register Org Admin API")
-    public ResponseEntity<Response<RegisterOrgAdminResponse>> registerOrgAdmin(@Valid @RequestPart RegisterOrgAdminRequest request,
-                                                                               @RequestPart(required = false) MultipartFile logo,
-                                                                               @RequestPart(required = false) MultipartFile coverPhoto) {
+    public ResponseEntity<Response<RegisterOrgAdminResponse>> registerOrgAdmin(@Valid @RequestPart("request") RegisterOrgAdminRequest request,
+                                                                               @RequestPart(value = "logo", required = false) MultipartFile logo,
+                                                                               @RequestPart(value = "coverPhoto", required = false) MultipartFile coverPhoto) {
         if(logo == null) {
             throw new AppException(UserErrorCode.LOGO_REQUIRE);
         }
@@ -94,7 +94,7 @@ public class AuthController {
     // public API
     @GetMapping("/request-resend-verify-email")
     @Operation(summary = "Request Resend Verify Email API")
-    public ResponseEntity<Response<RequestResendVerifyEmailResponse>> requestResendVerifyEmail(@RequestParam String identifier) {
+    public ResponseEntity<Response<RequestResendVerifyEmailResponse>> requestResendVerifyEmail(@RequestParam("identifier") String identifier) {
         return ResponseUtils.success(authService.requestResendVerifyEmail(identifier),
                 localizationUtils.getLocalizedMessage(Messages.REQUEST_RESEND_VERIFY_EMAIL_SUCCESS));
     }
@@ -102,14 +102,14 @@ public class AuthController {
     // public API
     @PutMapping("/verify-email/{token}")
     @Operation(summary = "Verify Email API")
-    public ResponseEntity<Response<VerifyEmailResponse>> verifyEmail(@PathVariable String token) {
+    public ResponseEntity<Response<VerifyEmailResponse>> verifyEmail(@PathVariable("token") String token) {
         return ResponseUtils.success(authService.verifyEmail(token), localizationUtils.getLocalizedMessage(Messages.VERIFY_EMAIL_SUCCESS));
     }
 
     // public API
     @GetMapping("/request-reset-password")
     @Operation(summary = "Request Reset Password API")
-    public ResponseEntity<Response<RequestResetPasswordResponse>> requestResetPassword(@RequestParam String identifier) {
+    public ResponseEntity<Response<RequestResetPasswordResponse>> requestResetPassword(@RequestParam("identifier") String identifier) {
         return ResponseUtils.success(authService.requestResetPassword(identifier),
                 localizationUtils.getLocalizedMessage(Messages.REQUEST_RESET_PASSWORD_SUCCESS));
     }

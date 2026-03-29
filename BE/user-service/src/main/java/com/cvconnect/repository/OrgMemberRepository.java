@@ -9,6 +9,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -67,28 +68,28 @@ public interface OrgMemberRepository extends JpaRepository<OrgMember, Long> {
             "AND (:#{#request.inviter} IS NULL OR LOWER(om.inviter) LIKE LOWER(CONCAT('%', :#{#request.inviter}, '%'))) " +
             "AND (:#{#request.updatedBy} IS NULL OR LOWER(om.updatedBy) LIKE LOWER(CONCAT('%', :#{#request.updatedBy}, '%'))) "
     )
-    Page<OrgMemberProjection> filter(OrgMemberFilter request, Pageable pageable);
+    Page<OrgMemberProjection> filter(@Param("request") OrgMemberFilter request, Pageable pageable);
 
     @Query("select om from OrgMember om where om.userId in :userIds and om.orgId = :orgId")
-    List<OrgMember> findByIdsAndOrgId(List<Long> userIds, Long orgId);
+    List<OrgMember> findByIdsAndOrgId(@Param("userIds") List<Long> userIds, @Param("orgId") Long orgId);
 
     @Query("select case when count(om) > 0 then true else false end " +
             "from OrgMember om " +
             "join RoleUser ru on ru.userId = om.userId " +
             "join Role r on r.id = ru.roleId " +
             "where om.isActive = true and om.orgId = :orgId and r.code = :roleCode")
-    boolean checkExistsOrgAdmin(Long orgId, String roleCode);
+            boolean checkExistsOrgAdmin(@Param("orgId") Long orgId, @Param("roleCode") String roleCode);
 
     @Query("select om from OrgMember om where om.userId = :userId and om.orgId = :orgId")
-    OrgMember findByUserIdAndOrgId(Long userId, Long orgId);
+            OrgMember findByUserIdAndOrgId(@Param("userId") Long userId, @Param("orgId") Long orgId);
 
     @Query("select om from OrgMember om where om.userId in :userIds and om.isActive = true")
-    List<OrgMember> findByUserIdInAndIsActiveTrue(List<Long> userIds);
+            List<OrgMember> findByUserIdInAndIsActiveTrue(@Param("userIds") List<Long> userIds);
 
     @Transactional
     @Modifying
     @Query("UPDATE OrgMember om SET om.isActive = :isActive WHERE om.orgId IN :orgIds")
-    void updateAccountStatusByOrgIds(List<Long> orgIds, Boolean isActive);
+    void updateAccountStatusByOrgIds(@Param("orgIds") List<Long> orgIds, @Param("isActive") Boolean isActive);
 
     @Query("""
         select distinct om.userId
@@ -97,15 +98,15 @@ public interface OrgMemberRepository extends JpaRepository<OrgMember, Long> {
         join Role r on r.id = ru.roleId
         where om.orgId in :orgIds and r.code = 'ORG_ADMIN'
     """)
-    List<Long> findAccountAdminByOrgIds(List<Long> orgIds);
+    List<Long> findAccountAdminByOrgIds(@Param("orgIds") List<Long> orgIds);
 
     @Transactional
     @Modifying
     @Query("UPDATE OrgMember om SET om.isActive = :isActive WHERE om.userId IN :userIds")
-    void updateAccountOrgAdminStatusByOrgIds(List<Long> userIds, Boolean isActive);
+    void updateAccountOrgAdminStatusByOrgIds(@Param("userIds") List<Long> userIds, @Param("isActive") Boolean isActive);
 
     @Transactional
     @Modifying
     @Query("UPDATE OrgMember om SET om.isActive = :isActive WHERE om.orgId IN :orgIds and om.updatedAt >= :updatedAt")
-    void updateAccountStatusByOrgIdsWithTime(List<Long> orgIds, Boolean isActive, Instant updatedAt);
+    void updateAccountStatusByOrgIdsWithTime(@Param("orgIds") List<Long> orgIds, @Param("isActive") Boolean isActive, @Param("updatedAt") Instant updatedAt);
 }

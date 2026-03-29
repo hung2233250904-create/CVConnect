@@ -20,11 +20,11 @@ import java.util.List;
 public interface RoleRepository extends JpaRepository<Role, Long> {
 
     @Query("SELECT r FROM Role r WHERE r.code = :code")
-    Role findByCode(String code);
+        Role findByCode(@Param("code") String code);
 
     @Modifying
     @Query("DELETE FROM Role r WHERE r.id IN :ids")
-    void deleteByIds(List<Long> ids);
+        void deleteByIds(@Param("ids") List<Long> ids);
 
     @Query("SELECT new com.cvconnect.dto.role.RoleDto(r.id, r.code, r.name, r.memberType, r.createdAt, r.updatedAt, r.createdBy, r.updatedBy) " +
             "FROM Role r " +
@@ -44,8 +44,8 @@ public interface RoleRepository extends JpaRepository<Role, Long> {
             "FROM Role r " +
             "JOIN RoleUser ru ON ru.roleId = r.id " +
             "WHERE ru.userId = :userId")
-    List<RoleDto> getRoleByUserId(Long userId);
+        List<RoleDto> getRoleByUserId(@Param("userId") Long userId);
 
     @Query("SELECT r from Role r WHERE r.memberType = :memberType")
-    List<Role> findByMemberType(MemberType memberType);
+        List<Role> findByMemberType(@Param("memberType") MemberType memberType);
 }
