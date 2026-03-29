@@ -420,6 +420,9 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public VerifyResponse verify(VerifyRequest verifyRequest) {
         try {
+            if (verifyRequest == null || verifyRequest.getToken() == null || verifyRequest.getToken().isBlank()) {
+                return this.buildErrorResponse(CommonErrorCode.UNAUTHENTICATED);
+            }
             JwtUser jwtUser = nmquan.commonlib.utils.JwtUtils.validate(verifyRequest.getToken(), SECRET_KEY);
             UserDto userDto = userService.findByUsername(jwtUser.getUsername());
             if(userDto == null) {

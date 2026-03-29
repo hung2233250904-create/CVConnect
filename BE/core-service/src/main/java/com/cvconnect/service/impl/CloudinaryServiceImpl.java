@@ -49,6 +49,8 @@ public class CloudinaryServiceImpl implements CloudinaryService {
                 String originalFilename = file.getOriginalFilename();
                 String baseName = FilenameUtils.getBaseName(originalFilename);
                 String extension = FilenameUtils.getExtension(originalFilename).toLowerCase();
+                boolean isDocumentFile = extension.matches("pdf|doc|docx");
+                String resourceType = isDocumentFile ? "raw" : "image";
 
                 String newFileName = baseName + "_" + System.currentTimeMillis();
                 if (extension.matches("doc|docx")) {
@@ -56,21 +58,25 @@ public class CloudinaryServiceImpl implements CloudinaryService {
                 }
                 Map map = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.asMap(
                         "folder", FOLDER_BASE + folder,
-                        "resource_type", "auto",
-                        "public_id", newFileName
+                        "resource_type", resourceType,
+                        "public_id", newFileName,
+                        "type", "upload",
+                        "access_mode", "public"
                 ));
+                String uploadedPublicId = map.get("public_id") != null ? map.get("public_id").toString() : newFileName;
+                String uploadedFolder = map.get("folder") != null ? map.get("folder").toString() : (FOLDER_BASE + folder);
                 AttachFileDto attachFileDto = AttachFileDto.builder()
                         .originalFilename(originalFilename)
                         .baseFilename(baseName)
                         .extension(extension)
                         .filename(newFileName)
                         .format(map.get("format")!= null ? map.get("format").toString() : null)
-                        .resourceType(map.get("resource_type").toString())
-                        .secureUrl(map.get("secure_url").toString())
-                        .type(map.get("type").toString())
-                        .url(map.get("url").toString())
-                        .publicId(map.get("public_id").toString())
-                        .folder(map.get("folder").toString())
+                    .resourceType(map.get("resource_type") != null ? map.get("resource_type").toString() : "raw")
+                    .secureUrl(map.get("secure_url") != null ? map.get("secure_url").toString() : null)
+                    .type(map.get("type") != null ? map.get("type").toString() : "upload")
+                    .url(map.get("url") != null ? map.get("url").toString() : null)
+                    .publicId(uploadedPublicId)
+                    .folder(uploadedFolder)
                         .build();
                 attachFileDtos.add(attachFileDto);
             }

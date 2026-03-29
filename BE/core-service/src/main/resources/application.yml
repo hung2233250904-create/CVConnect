@@ -79,6 +79,6 @@ kafka:
     send-email: send-email-topic
 
 cloudinary:
-  cloud-name: ${CLOUDINARY_CLOUD_NAME:}
-  api-key: ${CLOUDINARY_API_KEY:}
-  api-secret: ${CLOUDINARY_API_SECRET:}
+  cloud-name: ${CLOUDINARY_CLOUD_NAME:dbz0omjn3}
+  api-key: ${CLOUDINARY_API_KEY:481449319939715}
+  api-secret: ${CLOUDINARY_API_SECRET:LE7aAxXXS2SnefHOfdKVeL39GhA}

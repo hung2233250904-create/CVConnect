@@ -37,7 +37,7 @@ public class JobAdController {
     @GetMapping("/process/{jobAdId}")
     @Operation(summary = "Get Job Ad by Job Ad Process ID")
     @PreAuthorize("hasAnyAuthority('ORG_JOB_AD:VIEW')")
-    public ResponseEntity<Response<List<JobAdProcessDto>>> getProcessByJobAdId(@PathVariable Long jobAdId) {
+    public ResponseEntity<Response<List<JobAdProcessDto>>> getProcessByJobAdId(@PathVariable("jobAdId") Long jobAdId) {
         return ResponseUtils.success(jobAdService.getProcessByJobAdId(jobAdId));
     }
 
@@ -51,7 +51,7 @@ public class JobAdController {
     @PutMapping("/update-status/{jobAdId}")
     @Operation(summary = "Update Job Ad Status")
     @PreAuthorize("hasAnyAuthority('ORG_JOB_AD:UPDATE')")
-    public ResponseEntity<Response<Void>> updateJobAdStatus(@PathVariable Long jobAdId, @Valid @RequestBody JobAdStatusRequest request) {
+    public ResponseEntity<Response<Void>> updateJobAdStatus(@PathVariable("jobAdId") Long jobAdId, @Valid @RequestBody JobAdStatusRequest request) {
         request.setJobAdId(jobAdId);
         jobAdService.updateJobAdStatus(request);
         return ResponseUtils.success(null, localizationUtils.getLocalizedMessage(MessageConstants.UPDATE_SUCCESSFULLY));
@@ -60,7 +60,7 @@ public class JobAdController {
     @PutMapping("/update-public/{jobAdId}")
     @Operation(summary = "Update Job Ad Public Status")
     @PreAuthorize("hasAnyAuthority('ORG_JOB_AD:UPDATE')")
-    public ResponseEntity<Response<Void>> updatePublicStatus(@PathVariable Long jobAdId, @Valid @RequestBody JobAdPublicStatusRequest request) {
+    public ResponseEntity<Response<Void>> updatePublicStatus(@PathVariable("jobAdId") Long jobAdId, @Valid @RequestBody JobAdPublicStatusRequest request) {
         request.setJobAdId(jobAdId);
         jobAdService.updatePublicStatus(request);
         return ResponseUtils.success(null, localizationUtils.getLocalizedMessage(MessageConstants.UPDATE_SUCCESSFULLY));
@@ -69,14 +69,14 @@ public class JobAdController {
     @GetMapping("/org/detail/{jobAdId}")
     @Operation(summary = "Get Job Ad by ID for Organization")
     @PreAuthorize("hasAnyAuthority('ORG_JOB_AD:VIEW')")
-    public ResponseEntity<Response<JobAdOrgDetailResponse>> getJobAdOrgDetail(@PathVariable Long jobAdId) {
+    public ResponseEntity<Response<JobAdOrgDetailResponse>> getJobAdOrgDetail(@PathVariable("jobAdId") Long jobAdId) {
         return ResponseUtils.success(jobAdService.getJobAdOrgDetail(jobAdId));
     }
 
     @PutMapping("/update/{jobAdId}")
     @Operation(summary = "Update Job Ad")
     @PreAuthorize("hasAnyAuthority('ORG_JOB_AD:UPDATE')")
-    public ResponseEntity<Response<IDResponse<Long>>> updateJobAd(@PathVariable Long jobAdId, @Valid @RequestBody JobAdUpdateRequest request) {
+    public ResponseEntity<Response<IDResponse<Long>>> updateJobAd(@PathVariable("jobAdId") Long jobAdId, @Valid @RequestBody JobAdUpdateRequest request) {
         request.setId(jobAdId);
         return ResponseUtils.success(jobAdService.update(request), localizationUtils.getLocalizedMessage(MessageConstants.UPDATE_SUCCESSFULLY));
     }
@@ -102,14 +102,14 @@ public class JobAdController {
 
     @GetMapping("/outside/detail/{jobAdId}")
     @Operation(summary = "Get Job Ad Detail for Outside Users")
-    public ResponseEntity<Response<JobAdOutsideDetailResponse>> detailOutside(@PathVariable Long jobAdId,
+    public ResponseEntity<Response<JobAdOutsideDetailResponse>> detailOutside(@PathVariable("jobAdId") Long jobAdId,
                                                                               @RequestParam(name = "keyCodeInternal", required = false) String keyCodeInternal) {
         return ResponseUtils.success(jobAdService.detailOutside(jobAdId, keyCodeInternal));
     }
 
     @GetMapping("/outside/relate/{jobAdId}")
     @Operation(summary = "Get Related Job Ads for Outside Users")
-    public ResponseEntity<Response<List<JobAdOutsideDetailResponse>>> listRelateOutside(@PathVariable Long jobAdId) {
+    public ResponseEntity<Response<List<JobAdOutsideDetailResponse>>> listRelateOutside(@PathVariable("jobAdId") Long jobAdId) {
         return ResponseUtils.success(jobAdService.listRelateOutside(jobAdId));
     }
 

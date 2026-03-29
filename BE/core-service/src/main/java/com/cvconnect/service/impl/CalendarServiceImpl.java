@@ -128,10 +128,6 @@ public class CalendarServiceImpl implements CalendarService {
         // send email (candidate)
         Map<Long, CandidateInfoApplyDto> candidateInfos = candidateInfoApplyService.getByIds(candidateInfoIds);
         if (request.isSendEmail()) {
-            EmailConfigDto emailConfigDto = restTemplateClient.getEmailConfigByOrg();
-            if (ObjectUtils.isEmpty(emailConfigDto)) {
-                throw new AppException(CoreErrorCode.EMAIL_CONFIG_NOT_FOUND);
-            }
             String subject;
             String template;
             List<String> placeholders;

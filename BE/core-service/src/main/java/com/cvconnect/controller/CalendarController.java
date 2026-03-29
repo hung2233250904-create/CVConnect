@@ -26,7 +26,7 @@ public class CalendarController {
 
     @PostMapping("/create")
     @Operation(summary = "Create Calendar", description = "Create a new calendar entry")
-    @PreAuthorize("hasAnyAuthority('ORG_CALENDAR:ADD')")
+    @PreAuthorize("hasAnyAuthority('ORG_CALENDAR:ADD', 'ORG_ADMIN', 'HR')")
     public ResponseEntity<Response<IDResponse<Long>>> createCalendar(@Valid @RequestBody CalendarRequest request) {
         return ResponseUtils.success(calendarService.createCalendar(request), localizationUtils.getLocalizedMessage(MessageConstants.CREATE_SUCCESSFULLY));
     }

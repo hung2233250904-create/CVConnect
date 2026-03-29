@@ -25,6 +25,7 @@ import com.cvconnect.enums.*;
 import com.cvconnect.repository.JobAdCandidateRepository;
 import com.cvconnect.service.*;
 import com.cvconnect.utils.CoreServiceUtils;
+import lombok.extern.slf4j.Slf4j;
 import nmquan.commonlib.constant.CommonConstants;
 import nmquan.commonlib.dto.SendEmailDto;
 import nmquan.commonlib.dto.response.FilterResponse;
@@ -47,6 +48,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class JobAdCandidateServiceImpl implements JobAdCandidateService {
     @Autowired
     private JobAdCandidateRepository jobAdCandidateRepository;
@@ -522,10 +524,6 @@ public class JobAdCandidateServiceImpl implements JobAdCandidateService {
 
         // send email to candidate
         if(request.isSendEmail()){
-            EmailConfigDto emailConfigDto = restTemplateClient.getEmailConfigByOrg();
-            if(ObjectUtils.isEmpty(emailConfigDto)){
-                throw new AppException(CoreErrorCode.EMAIL_CONFIG_NOT_FOUND);
-            }
             String subject;
             String template;
             List<String> placeholders;
@@ -669,10 +667,6 @@ public class JobAdCandidateServiceImpl implements JobAdCandidateService {
         kafkaUtils.sendWithJson(Constants.KafkaTopic.NOTIFICATION, notifyDto);
 
         if(request.isSendEmail()){
-            EmailConfigDto emailConfigDto = restTemplateClient.getEmailConfigByOrg();
-            if(ObjectUtils.isEmpty(emailConfigDto)){
-                throw new AppException(CoreErrorCode.EMAIL_CONFIG_NOT_FOUND);
-            }
             String subject;
             String template;
             List<String> placeholders;
@@ -839,10 +833,6 @@ public class JobAdCandidateServiceImpl implements JobAdCandidateService {
     public void sendEmailToCandidate(SendEmailToCandidateRequest request) {
         // validate
         Long orgId = restTemplateClient.validOrgMember();
-        EmailConfigDto emailConfigDto = restTemplateClient.getEmailConfigByOrg();
-        if(ObjectUtils.isEmpty(emailConfigDto)){
-            throw new AppException(CoreErrorCode.EMAIL_CONFIG_NOT_FOUND);
-        }
         JobAdDto jobAd = jobAdService.findById(request.getJobAdId());
         if(ObjectUtils.isEmpty(jobAd)){
             throw new AppException(CoreErrorCode.JOB_AD_NOT_FOUND);
@@ -868,27 +858,43 @@ public class JobAdCandidateServiceImpl implements JobAdCandidateService {
             }
             subject = emailTemplateDto.getSubject();
             template = emailTemplateDto.getBody();
-            placeholders = emailTemplateDto.getPlaceholderCodes();
+            placeholders = emailTemplateDto.getPlaceholderCodes() != null
+                    ? emailTemplateDto.getPlaceholderCodes()
+                    : List.of();
         } else {
             CoreServiceUtils.validateManualEmail(request.getSubject(), request.getTemplate());
             subject = request.getSubject();
             template = request.getTemplate();
-            placeholders = request.getPlaceholders();
+            placeholders = request.getPlaceholders() != null
+                    ? request.getPlaceholders()
+                    : List.of();
         }
 
         // get data to replace placeholder
         CandidateInfoApplyDto candidateInfo = candidateInfoApplyService.getById(request.getCandidateInfoId());
         UserDto hrContact = restTemplateClient.getUser(WebUtils.getCurrentUserId());
         JobAdProcessCandidateDto jobAdProcessCandidateDto = jobAdProcessCandidateService.getCurrentProcess(request.getJobAdId(), request.getCandidateInfoId());
-        if(ObjectUtils.isEmpty(hrContact) || ObjectUtils.isEmpty(candidateInfo) || ObjectUtils.isEmpty(jobAdProcessCandidateDto)){
-            throw new AppException(CommonErrorCode.ERROR);
+        if(ObjectUtils.isEmpty(hrContact)){
+            throw new AppException(CommonErrorCode.ACCESS_DENIED);
+        }
+        if(ObjectUtils.isEmpty(candidateInfo)){
+            throw new AppException(CoreErrorCode.CANDIDATE_INFO_APPLY_NOT_FOUND);
+        }
+        if(ObjectUtils.isEmpty(candidateInfo.getEmail())){
+            throw new AppException(CoreErrorCode.EMAIL_REQUIRED);
+        }
+        if(ObjectUtils.isEmpty(hrContact.getEmail())){
+            throw new AppException(CoreErrorCode.HR_CONTACT_NOT_FOUND);
         }
 
         // replace placeholders
+        String processName = jobAdProcessCandidateDto != null
+                ? jobAdProcessCandidateDto.getProcessName()
+            : ProcessTypeEnum.APPLY.name();
         DataReplacePlaceholder dataReplacePlaceholder = DataReplacePlaceholder.builder()
                 .positionId(jobAd.getPositionId())
                 .jobAdName(jobAd.getTitle())
-                .jobAdProcessName(jobAdProcessCandidateDto.getProcessName())
+                .jobAdProcessName(processName)
                 .orgId(jobAd.getOrgId())
                 .candidateName(candidateInfo.getFullName())
                 .hrName(hrContact.getFullName())
@@ -897,18 +903,22 @@ public class JobAdCandidateServiceImpl implements JobAdCandidateService {
                 .build();
         String body = replacePlaceholder.replacePlaceholder(template, placeholders, dataReplacePlaceholder);
 
-        // send email
-        SendEmailDto sendEmailDto = SendEmailDto.builder()
-                .sender(hrContact.getEmail())
-                .recipients(List.of(candidateInfo.getEmail()))
-                .subject(subject)
-                .body(body)
-                .candidateInfoId(candidateInfo.getId())
-                .jobAdId(jobAd.getId())
-                .orgId(jobAd.getOrgId())
-                .emailTemplateId(emailTemplateId)
-                .build();
-        sendEmailService.sendEmailWithBody(sendEmailDto);
+        // Keep API stable if message broker/mail pipeline is temporarily unavailable.
+        try {
+            SendEmailDto sendEmailDto = SendEmailDto.builder()
+                    .sender(hrContact.getEmail())
+                    .recipients(List.of(candidateInfo.getEmail()))
+                    .subject(subject)
+                    .body(body)
+                    .candidateInfoId(candidateInfo.getId())
+                    .jobAdId(jobAd.getId())
+                    .orgId(jobAd.getOrgId())
+                    .emailTemplateId(emailTemplateId)
+                    .build();
+            sendEmailService.sendEmailWithBody(sendEmailDto);
+        } catch (Exception e) {
+            log.warn("Failed to publish send-email event for candidateInfoId={} jobAdId={}", request.getCandidateInfoId(), request.getJobAdId(), e);
+        }
     }
 
     @Override

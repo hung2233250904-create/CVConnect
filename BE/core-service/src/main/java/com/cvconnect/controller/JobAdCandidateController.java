@@ -1,16 +1,22 @@
 package com.cvconnect.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.cvconnect.constant.Messages;
 import com.cvconnect.dto.candidateInfoApply.CandidateInfoDetail;
 import com.cvconnect.dto.jobAdCandidate.*;
 import com.cvconnect.service.JobAdCandidateService;
 import io.swagger.v3.oas.annotations.Operation;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.Part;
 import jakarta.validation.Valid;
 import nmquan.commonlib.annotation.InternalRequest;
 import nmquan.commonlib.constant.MessageConstants;
 import nmquan.commonlib.dto.response.FilterResponse;
 import nmquan.commonlib.dto.response.IDResponse;
 import nmquan.commonlib.dto.response.Response;
+import nmquan.commonlib.exception.AppException;
+import nmquan.commonlib.exception.CommonErrorCode;
 import nmquan.commonlib.utils.LocalizationUtils;
 import nmquan.commonlib.utils.ResponseUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +25,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 @RestController
@@ -28,13 +35,66 @@ public class JobAdCandidateController {
     private JobAdCandidateService jobAdCandidateService;
     @Autowired
     private LocalizationUtils localizationUtils;
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @PostMapping("/apply")
     @Operation(summary = "Apply for a job ad")
     @PreAuthorize("hasAnyAuthority('CANDIDATE')")
-    public ResponseEntity<Response<IDResponse<Long>>> apply(@Valid @RequestPart ApplyRequest request,
-                                                            @RequestPart(required = false) MultipartFile cvFile) {
+    public ResponseEntity<Response<IDResponse<Long>>> apply(HttpServletRequest servletRequest,
+                                                            @RequestPart(value = "cvFile", required = false) MultipartFile cvFile) {
+        ApplyRequest request;
+        try {
+            String requestJson = resolveRequestJson(servletRequest);
+            request = parseApplyRequest(requestJson);
+        } catch (AppException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new AppException(CommonErrorCode.INVALID_FORMAT);
+        }
         return ResponseUtils.success(jobAdCandidateService.apply(request, cvFile), localizationUtils.getLocalizedMessage(Messages.APPLY_SUCCESS));
+    }
+
+    private String resolveRequestJson(HttpServletRequest servletRequest) throws Exception {
+        String requestJson = servletRequest.getParameter("request");
+        if (requestJson == null || requestJson.isBlank()) {
+            Part requestPart = servletRequest.getPart("request");
+            if (requestPart != null) {
+                requestJson = new String(requestPart.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            }
+        }
+        if (requestJson == null || requestJson.isBlank()) {
+            throw new AppException(CommonErrorCode.INVALID_FORMAT);
+        }
+        return requestJson;
+    }
+
+    private ApplyRequest parseApplyRequest(String rawJson) throws Exception {
+        String candidate = rawJson == null ? "" : rawJson.trim();
+        for (int i = 0; i < 4; i++) {
+            try {
+                return objectMapper.readValue(candidate, ApplyRequest.class);
+            } catch (Exception ignored) {
+                // Try to unwrap if payload is double-encoded as a JSON string.
+            }
+
+            try {
+                JsonNode node = objectMapper.readTree(candidate);
+                if (node != null && node.isTextual()) {
+                    candidate = node.asText();
+                    continue;
+                }
+            } catch (Exception ignored) {
+                // Continue with manual normalization fallback.
+            }
+
+            if ((candidate.startsWith("\"") && candidate.endsWith("\""))
+                    || (candidate.startsWith("'") && candidate.endsWith("'"))) {
+                candidate = candidate.substring(1, candidate.length() - 1);
+            }
+            candidate = candidate.replace("\\\\\"", "\"").replace("\\\"", "\"").trim();
+        }
+        throw new AppException(CommonErrorCode.INVALID_FORMAT);
     }
 
     @GetMapping("/filter")
@@ -47,13 +107,13 @@ public class JobAdCandidateController {
     @GetMapping("/candidate-detail/{candidateInfoId}")
     @Operation(summary = "Get candidate detail by candidateInfoId")
     @PreAuthorize("hasAnyAuthority('ORG_CANDIDATE:VIEW')")
-    public ResponseEntity<Response<CandidateInfoDetail>> getCandidateDetail(@PathVariable Long candidateInfoId) {
+    public ResponseEntity<Response<CandidateInfoDetail>> getCandidateDetail(@PathVariable("candidateInfoId") Long candidateInfoId) {
         return ResponseUtils.success(jobAdCandidateService.candidateDetail(candidateInfoId));
     }
 
     @PutMapping("/change-process")
     @Operation(summary = "Change candidate process status")
-    @PreAuthorize("hasAnyAuthority('ORG_CANDIDATE:UPDATE')")
+    @PreAuthorize("hasAnyAuthority('ORG_CANDIDATE:UPDATE', 'ORG_ADMIN', 'HR')")
     public ResponseEntity<Response<Void>> changeCandidateProcess(@Valid @RequestBody ChangeCandidateProcessRequest request) {
         jobAdCandidateService.changeCandidateProcess(request);
         return ResponseUtils.success(null, localizationUtils.getLocalizedMessage(Messages.CHANGE_CANDIDATE_PROCESS_SUCCESS));
@@ -85,7 +145,7 @@ public class JobAdCandidateController {
 
     @PostMapping("/send-email")
     @Operation(summary = "Send email to candidate")
-    @PreAuthorize("hasAnyAuthority('ORG_CANDIDATE:ADD')")
+    @PreAuthorize("hasAnyAuthority('ORG_CANDIDATE:ADD', 'ORG_ADMIN', 'HR')")
     public ResponseEntity<Response<Void>> sendEmailToCandidate(@Valid @RequestBody SendEmailToCandidateRequest request) {
         jobAdCandidateService.sendEmailToCandidate(request);
         return ResponseUtils.success(null, localizationUtils.getLocalizedMessage(Messages.SEND_EMAIL_SUCCESS));
@@ -128,7 +188,7 @@ public class JobAdCandidateController {
     @GetMapping("/internal/get-job-ad-candidate-data/{jobAdId}/{candidateId}")
     @InternalRequest
     @Operation(summary = "Get job ad candidate data for internal use")
-    public ResponseEntity<Response<JobAdCandidateDto>> getJobAdCandidateData(@PathVariable Long jobAdId, @PathVariable Long candidateId) {
+    public ResponseEntity<Response<JobAdCandidateDto>> getJobAdCandidateData(@PathVariable("jobAdId") Long jobAdId, @PathVariable("candidateId") Long candidateId) {
         return ResponseUtils.success(jobAdCandidateService.getJobAdCandidateData(jobAdId, candidateId));
     }
 }

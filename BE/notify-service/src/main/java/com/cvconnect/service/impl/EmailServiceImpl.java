@@ -15,8 +15,10 @@ import nmquan.commonlib.exception.CommonErrorCode;
 import nmquan.commonlib.utils.ObjectMapperUtils;
 import nmquan.commonlib.utils.WebUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.ObjectUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -35,11 +37,31 @@ public class EmailServiceImpl implements EmailService {
     @Autowired
     private RestTemplateClient restTemplateClient;
 
+    @Value("${mail.fallback.host:smtp.gmail.com}")
+    private String fallbackHost;
+    @Value("${mail.fallback.port:587}")
+    private Integer fallbackPort;
+    @Value("${mail.fallback.email:${server.email-admin:}}")
+    private String fallbackEmail;
+    @Value("${mail.fallback.password:}")
+    private String fallbackPassword;
+    @Value("${mail.fallback.is-ssl:false}")
+    private Boolean fallbackIsSsl;
+    @Value("${mail.fallback.protocol:smtp}")
+    private String fallbackProtocol;
+
     private static final int BATCH_SIZE = 30;
 
     @Override
     public void sendEmail(SendEmailDto sendEmailDto) {
-        Session session = this.getSession(sendEmailDto.getOrgId());
+        Session session = null;
+        String sessionError = null;
+        try {
+            session = this.getSession(sendEmailDto.getOrgId());
+        } catch (Exception ex) {
+            sessionError = ex.getMessage();
+        }
+
         List<String> recipients = sendEmailDto.getRecipients();
         String emailGroup = UUID.randomUUID().toString().substring(0,18);
         for (int i = 0; i < recipients.size(); i += BATCH_SIZE) {
@@ -58,6 +80,14 @@ public class EmailServiceImpl implements EmailService {
                     .templateVariables(sendEmailDto.getTemplateVariables())
                     .build();
             EmailLogDto emailLogDto = this.buildEmailLogDto(batchDto, emailGroup);
+
+            if (session == null) {
+                emailLogDto.setStatus(SendEmailStatus.FAILURE);
+                emailLogDto.setErrorMessage(sessionError);
+                emailLogService.save(emailLogDto);
+                continue;
+            }
+
             Long emailLogId = emailLogService.save(emailLogDto);
             // Send email async
             emailAsyncServiceImpl.send(batchDto, session, emailLogId);
@@ -104,27 +134,49 @@ public class EmailServiceImpl implements EmailService {
     }
 
     private Session getSession(Long orgId) {
-        EmailConfigDto emailConfigDto = emailConfigService.getByOrgId(orgId);
-        if (emailConfigDto == null) {
+        EmailConfigDto resolvedEmailConfig = emailConfigService.getByOrgId(orgId);
+        if (resolvedEmailConfig == null) {
+            resolvedEmailConfig = this.buildFallbackEmailConfig();
+        }
+        if (resolvedEmailConfig == null) {
             throw new AppException(NotifyErrorCode.EMAIL_CONFIG_NOT_FOUND);
         }
+        final EmailConfigDto emailConfig = resolvedEmailConfig;
 
         Properties props = new Properties();
-        props.put("mail.transport.protocol", emailConfigDto.getProtocol());
-        props.put("mail." + emailConfigDto.getProtocol() + ".host", emailConfigDto.getHost());
-        props.put("mail." + emailConfigDto.getProtocol() + ".port", String.valueOf(emailConfigDto.getPort()));
-        props.put("mail." + emailConfigDto.getProtocol() + ".auth", "true");
-        if (emailConfigDto.getIsSsl()) {
-            props.put("mail." + emailConfigDto.getProtocol() + ".ssl.enable", "true");
+        props.put("mail.transport.protocol", emailConfig.getProtocol());
+        props.put("mail." + emailConfig.getProtocol() + ".host", emailConfig.getHost());
+        props.put("mail." + emailConfig.getProtocol() + ".port", String.valueOf(emailConfig.getPort()));
+        props.put("mail." + emailConfig.getProtocol() + ".auth", "true");
+        if (emailConfig.getIsSsl()) {
+            props.put("mail." + emailConfig.getProtocol() + ".ssl.enable", "true");
         } else {
-            props.put("mail." + emailConfigDto.getProtocol() + ".starttls.enable", "true");
+            props.put("mail." + emailConfig.getProtocol() + ".starttls.enable", "true");
         }
         return Session.getInstance(props, new Authenticator() {
             @Override
             protected PasswordAuthentication getPasswordAuthentication() {
-                return new PasswordAuthentication(emailConfigDto.getEmail(), emailConfigDto.getPassword());
+                return new PasswordAuthentication(emailConfig.getEmail(), emailConfig.getPassword());
             }
         });
+    }
+
+    private EmailConfigDto buildFallbackEmailConfig() {
+        if (ObjectUtils.isEmpty(fallbackHost)
+                || ObjectUtils.isEmpty(fallbackPort)
+                || ObjectUtils.isEmpty(fallbackEmail)
+                || ObjectUtils.isEmpty(fallbackPassword)
+                || ObjectUtils.isEmpty(fallbackProtocol)) {
+            return null;
+        }
+        return EmailConfigDto.builder()
+                .host(fallbackHost)
+                .port(fallbackPort)
+                .email(fallbackEmail)
+                .password(fallbackPassword)
+                .isSsl(Boolean.TRUE.equals(fallbackIsSsl))
+                .protocol(fallbackProtocol)
+                .build();
     }
 
     private EmailLogDto buildEmailLogDto(SendEmailDto sendEmailDto, String emailGroup) {

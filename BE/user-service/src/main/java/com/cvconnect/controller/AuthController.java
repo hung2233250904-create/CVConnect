@@ -1,7 +1,19 @@
 package com.cvconnect.controller;
 
 import com.cvconnect.constant.Messages;
-import com.cvconnect.dto.auth.*;
+import com.cvconnect.dto.auth.LoginRequest;
+import com.cvconnect.dto.auth.LoginResponse;
+import com.cvconnect.dto.auth.RefreshTokenResponse;
+import com.cvconnect.dto.auth.RegisterCandidateRequest;
+import com.cvconnect.dto.auth.RegisterCandidateResponse;
+import com.cvconnect.dto.auth.RegisterOrgAdminRequest;
+import com.cvconnect.dto.auth.RegisterOrgAdminResponse;
+import com.cvconnect.dto.auth.RequestResendVerifyEmailResponse;
+import com.cvconnect.dto.auth.RequestResetPasswordResponse;
+import com.cvconnect.dto.auth.ResetPasswordRequest;
+import com.cvconnect.dto.auth.ResetPasswordResponse;
+import com.cvconnect.dto.auth.VerifyEmailResponse;
+import com.cvconnect.dto.auth.VerifyResponse;
 import com.cvconnect.enums.UserErrorCode;
 import com.cvconnect.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -10,7 +22,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import nmquan.commonlib.dto.response.Response;
 import nmquan.commonlib.exception.AppException;
-import nmquan.commonlib.exception.ErrorCode;
 import nmquan.commonlib.utils.JwtUtils;
 import nmquan.commonlib.utils.LocalizationUtils;
 import nmquan.commonlib.utils.ResponseUtils;
@@ -18,6 +29,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/auth")
@@ -77,7 +90,13 @@ public class AuthController {
     // public API
     @PostMapping("/verify")
     @Operation(summary = "Verify Token API")
-    public ResponseEntity<Response<VerifyResponse>> verify(@RequestBody VerifyRequest verifyRequest) {
+    public ResponseEntity<Response<VerifyResponse>> verify(@RequestBody(required = false) Map<String, Object> payload) {
+        String token = null;
+        if (payload != null && payload.get("token") != null) {
+            token = String.valueOf(payload.get("token"));
+        }
+        com.cvconnect.dto.auth.VerifyRequest verifyRequest = new com.cvconnect.dto.auth.VerifyRequest();
+        verifyRequest.setToken(token);
         return ResponseUtils.success(authService.verify(verifyRequest));
     }
 
@@ -85,8 +104,13 @@ public class AuthController {
     @PostMapping("/verify-token")
     @Operation(summary = "Verify Token API")
     public ResponseEntity<Response<VerifyResponse>> verifyToken(HttpServletRequest httpServletRequest) {
-        String token = JwtUtils.getToken(httpServletRequest);
-        VerifyRequest verifyRequest = new VerifyRequest();
+        String token;
+        try {
+            token = JwtUtils.getToken(httpServletRequest);
+        } catch (Exception ex) {
+            token = null;
+        }
+        com.cvconnect.dto.auth.VerifyRequest verifyRequest = new com.cvconnect.dto.auth.VerifyRequest();
         verifyRequest.setToken(token);
         return ResponseUtils.success(authService.verify(verifyRequest));
     }

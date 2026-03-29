@@ -7,6 +7,7 @@ import com.cvconnect.entity.EmailLog;
 import com.cvconnect.enums.SendEmailStatus;
 import com.cvconnect.repository.EmailLogRepository;
 import com.cvconnect.service.EmailLogService;
+import lombok.extern.slf4j.Slf4j;
 import nmquan.commonlib.constant.CommonConstants;
 import nmquan.commonlib.utils.ObjectMapperUtils;
 import nmquan.commonlib.utils.WebUtils;
@@ -14,9 +15,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.ObjectUtils;
 
+import java.util.Collections;
 import java.util.List;
 
 @Service
+@Slf4j
 public class EmailLogServiceImpl implements EmailLogService {
     @Autowired
     private EmailLogRepository emailLogRepository;
@@ -69,16 +72,24 @@ public class EmailLogServiceImpl implements EmailLogService {
 
     @Override
     public List<EmailLogDto> getByCandidateInfoId(Long candidateInfoId, Long jobAdId) {
-        Long orgId = restTemplateClient.validOrgMember();
-        List<String> roles = WebUtils.getCurrentRole();
-        if(!roles.contains(Constants.RoleCode.HR) && !roles.contains(Constants.RoleCode.ORG_ADMIN)){
+        try {
+            Long orgId = restTemplateClient.validOrgMember();
+            List<String> roles = WebUtils.getCurrentRole();
+            if(roles == null){
+                roles = Collections.emptyList();
+            }
+            if(!roles.contains(Constants.RoleCode.HR) && !roles.contains(Constants.RoleCode.ORG_ADMIN)){
+                return List.of();
+            }
+            List<EmailLog> emailLogs = emailLogRepository.findByCandidateInfoIdAndJobAdIdAndOrgId(candidateInfoId, jobAdId, orgId);
+            if(ObjectUtils.isEmpty(emailLogs)){
+                return List.of();
+            }
+            return ObjectMapperUtils.convertToList(emailLogs, EmailLogDto.class);
+        } catch (Exception e) {
+            log.warn("Failed to load email logs for candidateInfoId={} jobAdId={}", candidateInfoId, jobAdId, e);
             return List.of();
         }
-        List<EmailLog> emailLogs = emailLogRepository.findByCandidateInfoIdAndOrgId(candidateInfoId, jobAdId);
-        if(ObjectUtils.isEmpty(emailLogs)){
-            return List.of();
-        }
-        return ObjectMapperUtils.convertToList(emailLogs, EmailLogDto.class);
     }
 
     private EmailLogDto buildEmailLogDto(EmailLog emailLog) {

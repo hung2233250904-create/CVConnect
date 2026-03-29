@@ -23,8 +23,9 @@ public class EmailLogController {
 
     @GetMapping("/log-by-candidate-info/{candidateInfoId}/{jobAdId}")
     @Operation(summary = "Get email logs by candidate info ID")
-    @PreAuthorize("hasAnyAuthority('ORG_CANDIDATE:VIEW')")
-    public ResponseEntity<Response<List<EmailLogDto>>> getByCandidateInfoId(@PathVariable Long candidateInfoId, @PathVariable Long jobAdId) {
+    @PreAuthorize("hasAnyAuthority('ORG_CANDIDATE:VIEW', 'ORG_ADMIN', 'HR')")
+    public ResponseEntity<Response<List<EmailLogDto>>> getByCandidateInfoId(@PathVariable("candidateInfoId") Long candidateInfoId,
+                                                                             @PathVariable("jobAdId") Long jobAdId) {
         return ResponseUtils.success(emailLogService.getByCandidateInfoId(candidateInfoId, jobAdId));
     }
 }

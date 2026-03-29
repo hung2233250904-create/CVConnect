@@ -25,7 +25,7 @@ public class CandidateSummaryOrgController {
     private LocalizationUtils localizationUtils;
 
     @PostMapping("/save-summary")
-    @PreAuthorize("hasAnyAuthority('ORG_CANDIDATE:UPDATE')")
+    @PreAuthorize("hasAnyAuthority('ORG_CANDIDATE:UPDATE', 'ORG_ADMIN', 'HR')")
     public ResponseEntity<Response<IDResponse<Long>>> saveSummary(@Valid @RequestBody CandidateSummaryOrgRequest request) {
         return ResponseUtils.success(candidateSummaryOrgService.saveSummary(request),
                 localizationUtils.getLocalizedMessage(MessageConstants.UPDATE_SUCCESSFULLY));

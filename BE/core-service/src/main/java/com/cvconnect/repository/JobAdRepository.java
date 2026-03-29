@@ -23,16 +23,16 @@ public interface JobAdRepository extends JpaRepository<JobAd, Integer> {
             "FROM job_ad " +
             "WHERE org_id = :orgId AND code LIKE CONCAT(:prefix, '%')",
             nativeQuery = true)
-    Long getSuffixCodeMax(Long orgId, String prefix);
+        Long getSuffixCodeMax(@Param("orgId") Long orgId, @Param("prefix") String prefix);
 
     @Query("SELECT CASE WHEN COUNT(d) > 0 THEN true ELSE false END " +
             "FROM Department d " +
             "JOIN Position p ON p.departmentId = d.id AND p.isActive = true " +
             "WHERE d.isActive = true AND d.orgId = :orgId AND p.id = :positionId")
-    boolean existsByOrgIdAndPositionId(Long orgId, Long positionId);
+        boolean existsByOrgIdAndPositionId(@Param("orgId") Long orgId, @Param("positionId") Long positionId);
 
     @Query("SELECT ja FROM JobAd ja WHERE ja.id = :id")
-    JobAd findById(Long id);
+        JobAd findById(@Param("id") Long id);
 
     @Query(value = """
         SELECT distinct
@@ -94,12 +94,12 @@ public interface JobAdRepository extends JpaRepository<JobAd, Integer> {
           AND (:participantId IS NULL OR ja.hrContactId = :participantId OR (ip.interviewerId IS NOT NULL AND ip.interviewerId = :participantId))
     """
     )
-    Page<JobAdOrgFilterProjection> filterJobAdsForOrg(JobAdOrgFilterRequest request, Pageable pageable, Long participantId);
+    Page<JobAdOrgFilterProjection> filterJobAdsForOrg(@Param("request") JobAdOrgFilterRequest request, Pageable pageable, @Param("participantId") Long participantId);
 
     @Query("select distinct ja from JobAd ja " +
             "join JobAdProcess jap on jap.jobAdId = ja.id " +
             "where jap.id = :jobAdProcessId")
-    JobAd findByJobAdProcessId(Long jobAdProcessId);
+    JobAd findByJobAdProcessId(@Param("jobAdProcessId") Long jobAdProcessId);
 
     @Query("""
         SELECT ja
@@ -110,7 +110,7 @@ public interface JobAdRepository extends JpaRepository<JobAd, Integer> {
         WHERE ja.orgId = :orgId and ja.id = :jobAdId
         AND (:participantId IS NULL OR ja.hrContactId = :participantId OR (ip.interviewerId IS NOT NULL AND ip.interviewerId = :participantId))
     """)
-    JobAd getJobAdOrgDetailById(Long jobAdId, Long orgId, Long participantId);
+    JobAd getJobAdOrgDetailById(@Param("jobAdId") Long jobAdId, @Param("orgId") Long orgId, @Param("participantId") Long participantId);
 
     @Query("""
         SELECT distinct ja
@@ -121,7 +121,7 @@ public interface JobAdRepository extends JpaRepository<JobAd, Integer> {
         WHERE ja.orgId = :orgId
           AND (:participantId IS NULL OR ja.hrContactId = :participantId OR (ip.interviewerId IS NOT NULL AND ip.interviewerId = :participantId))
     """)
-    Page<JobAd> getJobAdsByParticipantId(Long orgId, Long participantId, Pageable pageable);
+    Page<JobAd> getJobAdsByParticipantId(@Param("orgId") Long orgId, @Param("participantId") Long participantId, Pageable pageable);
 
     @Query(value = """
         select * from FUNC_FILTER_JOB_AD_OUTSIDE(
@@ -212,7 +212,7 @@ public interface JobAdRepository extends JpaRepository<JobAd, Integer> {
             order by 0.3 * rank_score + 0.05  * sim_score desc
             limit 10
         """, nativeQuery = true)
-    List<JobAd> findRelatedJobAds(String keyword, Long jobAdId);
+    List<JobAd> findRelatedJobAds(@Param("keyword") String keyword, @Param("jobAdId") Long jobAdId);
 
     @Query(value = """
         WITH all_jobs AS (
@@ -265,7 +265,7 @@ public interface JobAdRepository extends JpaRepository<JobAd, Integer> {
         FROM featured_jobs pj
         JOIN job_ad ja ON ja.id = pj.id;
     """, nativeQuery = true)
-    List<JobAdProjection> getFeaturedJobAds(Integer pageSize, Long offset);
+    List<JobAdProjection> getFeaturedJobAds(@Param("pageSize") Integer pageSize, @Param("offset") Long offset);
 
 
     @Query(value = """
@@ -327,10 +327,10 @@ public interface JobAdRepository extends JpaRepository<JobAd, Integer> {
         FROM suitable_jobs sj
         JOIN job_ad ja ON ja.id = sj.id
     """, nativeQuery = true)
-    List<JobAdProjection> getSuitableJobAds(String keyword, Integer pageSize, Long offset);
+    List<JobAdProjection> getSuitableJobAds(@Param("keyword") String keyword, @Param("pageSize") Integer pageSize, @Param("offset") Long offset);
 
     @Modifying
     @Query("UPDATE JobAd ja SET ja.jobAdStatus = :jobAdStatus WHERE ja.orgId IN :orgIds")
-    void updateJobAdStatusByOrgIds(List<Long> orgIds, String jobAdStatus);
+    void updateJobAdStatusByOrgIds(@Param("orgIds") List<Long> orgIds, @Param("jobAdStatus") String jobAdStatus);
 
 }

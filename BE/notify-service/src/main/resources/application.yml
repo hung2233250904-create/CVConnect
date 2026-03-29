@@ -89,3 +89,12 @@ redis:
 kafka:
   topic:
     send-email: send-email-topic
+
+mail:
+  fallback:
+    host: ${BREVO_SMTP_HOST:smtp.gmail.com}
+    port: ${BREVO_SMTP_PORT:587}
+    email: ${BREVO_SMTP_LOGIN:${server.email-admin}}
+    password: ${BREVO_SMTP_KEY:}
+    is-ssl: ${BREVO_SMTP_SSL:false}
+    protocol: ${BREVO_SMTP_PROTOCOL:smtp}
