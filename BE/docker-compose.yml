@@ -24,7 +24,7 @@ services:
     hostname: mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: 123456789
     ports:
       - "3307:3306"
     volumes:
@@ -66,7 +66,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: 123456
     ports:
       - "5433:5432"
     volumes:

@@ -4,11 +4,12 @@ spring:
   profiles:
     active: ${ENVIRONMENT:dev}
   datasource:
-    url: jdbc:mysql://${DB_MYSQL_HOST:localhost}:3306/cvconnect-user-service
-    username: root
-    password: root
+    url: jdbc:mysql://${DB_MYSQL_HOST:localhost}:${DB_MYSQL_PORT:3307}/cvconnect-user-service
+    username: ${DB_MYSQL_USERNAME:root}
+    password: ${DB_MYSQL_PASSWORD:123456789}
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
+    database-platform: org.hibernate.dialect.MySQLDialect
     hibernate:
       ddl-auto: none
     show_sql: false
@@ -46,7 +47,7 @@ server:
       cookie:
         path: /
   host_redis: ${REDIS_HOST:localhost}
-  port_redis: 6379
+  port_redis: ${REDIS_PORT:6379}
   email-admin : nnmhqn2003@gmail.com
   user_service: http://${HOST_USER_SERVICE:localhost}:${PORT_USER_SERVICE:8080}/user
   notify_service: http://${HOST_NOTIFY_SERVICE:localhost}:${PORT_NOTIFY_SERVICE:8081}/notify

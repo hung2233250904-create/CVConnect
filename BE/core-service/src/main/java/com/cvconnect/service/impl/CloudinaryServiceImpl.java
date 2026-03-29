@@ -91,6 +91,31 @@ public class CloudinaryServiceImpl implements CloudinaryService {
         });
     }
 
+    @Override
+    public String generateSignedUrl(AttachFileDto attachFileDto) {
+        if (attachFileDto == null) {
+            return null;
+        }
+        if (attachFileDto.getPublicId() == null || attachFileDto.getPublicId().isEmpty()) {
+            return attachFileDto.getSecureUrl();
+        }
+
+        try {
+            String resourceType = attachFileDto.getResourceType();
+            if (resourceType == null || resourceType.isEmpty()) {
+                resourceType = "auto";
+            }
+
+            return cloudinary.url()
+                    .secure(true)
+                    .signed(true)
+                    .resourceType(resourceType)
+                    .generate(attachFileDto.getPublicId());
+        } catch (Exception ignored) {
+            return attachFileDto.getSecureUrl();
+        }
+    }
+
     private boolean isAllowedFile(String contentType) {
         return contentType != null && (
                 contentType.equals("image/jpeg") ||     // .jpg, .jpeg

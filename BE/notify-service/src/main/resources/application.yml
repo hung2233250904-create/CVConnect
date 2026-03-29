@@ -4,18 +4,19 @@ spring:
   profiles:
     active: ${ENVIRONMENT:dev}
   datasource:
-    url: jdbc:mysql://${DB_MYSQL_HOST:localhost}:3306/cvconnect-notify-service
-    username: root
-    password: root
+    url: jdbc:mysql://${DB_MYSQL_HOST:localhost}:${DB_MYSQL_PORT:3307}/cvconnect-notify-service
+    username: ${DB_MYSQL_USERNAME:root}
+    password: ${DB_MYSQL_PASSWORD:123456789}
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
+    database-platform: org.hibernate.dialect.MySQLDialect
     hibernate:
       ddl-auto: none
     show-sql: false
   data:
     mongodb:
       host: ${COLLECTION_HOST:localhost}
-      port: 27017
+      port: ${MONGO_PORT:27018}
       database: cvconnect-notify-service
       username: root
       password: root
