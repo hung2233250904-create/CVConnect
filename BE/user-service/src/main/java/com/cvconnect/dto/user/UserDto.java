@@ -16,7 +16,7 @@ import java.util.List;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-`@SuperBuilder
+@SuperBuilder
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class UserDto extends BaseDto<Instant> {
     private String username;

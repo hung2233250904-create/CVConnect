@@ -44,7 +44,7 @@ public class EmailResendJob implements RunningJob {
     @Override
     @SchedulerLock(name = Constants.JobName.EMAIL_RESEND, lockAtMostFor = "5m", lockAtLeastFor = "2m")
     public void runJob() {
-        log.info("\uD83D\uDE80 Running job: {}", getJobName());
+        log.info("[START] Running job: {}", getJobName());
         List<EmailLogDto> waitResendEmails = emailLogService.getWaitResendEmail(RESEND_LIMIT);
         for(EmailLogDto emailLog : waitResendEmails) {
             SendEmailDto sendEmailDto = SendEmailDto.builder()
@@ -65,6 +65,6 @@ public class EmailResendJob implements RunningJob {
             }
             emailService.resendEmail(sendEmailDto, emailLog.getId());
         }
-        log.info("✅ Finished job (may be running async): {}", getJobName());
+        log.info("[DONE] Finished job (may be running async): {}", getJobName());
     }
 }
