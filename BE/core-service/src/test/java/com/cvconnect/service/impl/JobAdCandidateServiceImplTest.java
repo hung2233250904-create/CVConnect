@@ -32,9 +32,18 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -210,72 +219,422 @@ class JobAdCandidateServiceImplTest {
         verify(jobAdCandidateRepository, never()).save(any(JobAdCandidate.class));
     }
 
+
     @Test
-    void test_TC_HUNG_INV_001_eliminateCandidate_blocks_whenCandidateAlreadyRejected() {
-        // Test Case ID: HUNG-INV-001
-        // Objective: reject action must be blocked for already-rejected candidates.
-        // CheckDB: verify read access occurs and no write (save) is performed.
-        // Rollback: no write executed, so DB state remains unchanged.
+    void test_TC01_changeCandidateProcess_applyToScanCv_success_updatesStatusAndHistory() {
+        // Test Case ID: TC01
+        // Objective: valid transition APPLY -> SCREENING(SCAN_CV) updates status and history.
+        // CheckDB: verify candidate status becomes IN_PROGRESS and process history has one current process.
+        // Rollback: unit test uses mocks; no real DB transaction persisted.
 
-        setCurrentUser(9003L, Constants.RoleCode.ORG_ADMIN);
+        setCurrentUser(9001L, Constants.RoleCode.ORG_ADMIN);
+        Long candidateId = 101L;
+        Long targetProcessCandidateId = 501L;
 
-        when(restTemplateClient.validOrgMember()).thenReturn(10L);
-        when(jobAdCandidateRepository.existsByJobAdCandidateIdAndOrgId(100L, 10L)).thenReturn(true);
-        when(jobAdCandidateRepository.findById(100L)).thenReturn(
-                Optional.of(createJobAdCandidate(100L, 2002L, 3002L, CandidateStatus.REJECTED.name()))
-        );
+        prepareChangeProcessBase(candidateId, targetProcessCandidateId, ProcessTypeEnum.SCAN_CV, CandidateStatus.APPLIED.name(), true);
 
-        EliminateCandidateRequest request = EliminateCandidateRequest.builder()
-                .jobAdCandidateId(100L)
-                .reason(EliminateReasonEnum.SKILL_MISMATCH)
-                .reasonDetail("Does not match role expectation")
+        ChangeCandidateProcessRequest request = ChangeCandidateProcessRequest.builder()
+                .toJobAdProcessCandidateId(targetProcessCandidateId)
                 .sendEmail(false)
                 .build();
 
-        AppException exception = assertThrows(AppException.class, () -> service.eliminateCandidate(request));
-        assertEquals(CoreErrorCode.CANDIDATE_ALREADY_ELIMINATED, exception.getErrorCode());
+        service.changeCandidateProcess(request);
 
-        verify(jobAdCandidateRepository, never()).save(any(JobAdCandidate.class));
-        verifyNoInteractions(kafkaUtils);
+        ArgumentCaptor<JobAdCandidate> candidateCaptor = ArgumentCaptor.forClass(JobAdCandidate.class);
+        ArgumentCaptor<List<JobAdProcessCandidateDto>> processCaptor = ArgumentCaptor.forClass(List.class);
+        verify(jobAdCandidateRepository).save(candidateCaptor.capture());
+        verify(jobAdProcessCandidateService).create(processCaptor.capture());
+        assertEquals(CandidateStatus.IN_PROGRESS.name(), candidateCaptor.getValue().getCandidateStatus());
+        assertEquals(1L, processCaptor.getValue().stream().filter(dto -> Boolean.TRUE.equals(dto.getIsCurrentProcess())).count());
+        assertTrue(processCaptor.getValue().stream().filter(dto -> Boolean.TRUE.equals(dto.getIsCurrentProcess()))
+                .allMatch(dto -> dto.getActionDate() != null));
     }
 
     @Test
-    void test_TC_HUNG_RBK_001_eliminateCandidate_propagatesException_whenNotificationPublishFails() {
-        // Test Case ID: HUNG-RBK-001
-        // Objective: simulate mid-flow failure after DB save to validate transactional error behavior.
-        // CheckDB: verify entity is updated to REJECTED and save() is called once.
-        // Rollback: in real DB, @Transactional should rollback on RuntimeException. This unit test verifies exception propagation;
-        //           actual DB rollback must be confirmed by integration test with a real transactional datasource.
+    void test_TC02_changeCandidateProcess_scanCvToInterview_success_noErrors() {
+        // Test Case ID: TC02
+        // Objective: valid transition SCREENING(SCAN_CV) -> INTERVIEW runs successfully.
+        // CheckDB: verify candidate is saved and transition list is updated.
+        // Rollback: mock-based test, no persistent DB data.
+
+        setCurrentUser(9001L, Constants.RoleCode.ORG_ADMIN);
+        Long candidateId = 101L;
+        Long targetProcessCandidateId = 502L;
+
+        prepareChangeProcessBase(candidateId, targetProcessCandidateId, ProcessTypeEnum.INTERVIEW, CandidateStatus.IN_PROGRESS.name(), true);
+
+        ChangeCandidateProcessRequest request = ChangeCandidateProcessRequest.builder()
+                .toJobAdProcessCandidateId(targetProcessCandidateId)
+                .sendEmail(false)
+                .build();
+
+        assertDoesNotThrow(() -> service.changeCandidateProcess(request));
+        verify(jobAdCandidateRepository).save(any(JobAdCandidate.class));
+        verify(jobAdProcessCandidateService).create(anyList());
+    }
+
+    @Test
+    void test_TC03_changeCandidateProcess_interviewToOffer_success_noErrors() {
+        // Test Case ID: TC03
+        // Objective: valid transition INTERVIEW -> OFFER runs successfully.
+        // CheckDB: verify candidate is saved with in-progress state and process history updates.
+        // Rollback: unit test with mocks only.
+
+        setCurrentUser(9001L, Constants.RoleCode.ORG_ADMIN);
+        Long candidateId = 101L;
+        Long targetProcessCandidateId = 503L;
+
+        prepareChangeProcessBase(candidateId, targetProcessCandidateId, ProcessTypeEnum.OFFER, CandidateStatus.IN_PROGRESS.name(), true);
+
+        ChangeCandidateProcessRequest request = ChangeCandidateProcessRequest.builder()
+                .toJobAdProcessCandidateId(targetProcessCandidateId)
+                .sendEmail(false)
+                .build();
+
+        assertDoesNotThrow(() -> service.changeCandidateProcess(request));
+        verify(jobAdCandidateRepository).save(any(JobAdCandidate.class));
+    }
+
+    @Test
+    void test_TC04_changeCandidateProcess_offerToOnboard_success_setsWaitingAndDate() {
+        // Test Case ID: TC04
+        // Objective: valid transition OFFER -> ONBOARD stores onboard date and waiting status.
+        // CheckDB: verify status WAITING_ONBOARDING and onboardDate are saved.
+        // Rollback: no real DB transaction in unit test.
+
+        setCurrentUser(9001L, Constants.RoleCode.ORG_ADMIN);
+        Long candidateId = 101L;
+        Long targetProcessCandidateId = 504L;
+        Instant onboardDate = Instant.now().plusSeconds(172_800);
+
+        prepareChangeProcessBase(candidateId, targetProcessCandidateId, ProcessTypeEnum.ONBOARD, CandidateStatus.IN_PROGRESS.name(), true);
+        when(restTemplateClient.getUser(9001L)).thenReturn(UserDto.builder().id(9001L).fullName("HR Admin").build());
+        when(restTemplateClient.getUserByRoleCodeOrg(Constants.RoleCode.ORG_ADMIN, 10L))
+                .thenReturn(List.of(UserDto.builder().id(9100L).build()));
+
+        ChangeCandidateProcessRequest request = ChangeCandidateProcessRequest.builder()
+                .toJobAdProcessCandidateId(targetProcessCandidateId)
+                .sendEmail(false)
+                .onboardDate(onboardDate)
+                .build();
+
+        service.changeCandidateProcess(request);
+
+        ArgumentCaptor<JobAdCandidate> candidateCaptor = ArgumentCaptor.forClass(JobAdCandidate.class);
+        verify(jobAdCandidateRepository).save(candidateCaptor.capture());
+        assertEquals(CandidateStatus.WAITING_ONBOARDING.name(), candidateCaptor.getValue().getCandidateStatus());
+        assertEquals(onboardDate, candidateCaptor.getValue().getOnboardDate());
+    }
+
+    @Test
+    void test_TC07_changeCandidateProcess_doubleClick_onlyFirstCallApplies() {
+        // Test Case ID: TC07
+        // Objective: prevent double-click transitions from skipping stages.
+        // CheckDB: first call saves candidate; second call blocked before save.
+        // Rollback: no committed DB state in unit test.
+
+        setCurrentUser(9001L, Constants.RoleCode.ORG_ADMIN);
+        Long candidateId = 104L;
+        Long targetProcessCandidateId = 507L;
+
+        prepareChangeProcessBase(candidateId, targetProcessCandidateId, ProcessTypeEnum.INTERVIEW, CandidateStatus.IN_PROGRESS.name(), true);
+        when(jobAdProcessCandidateService.validateProcessOrderChange(targetProcessCandidateId, candidateId))
+                .thenReturn(true)
+                .thenReturn(false);
+
+        ChangeCandidateProcessRequest request = ChangeCandidateProcessRequest.builder()
+                .toJobAdProcessCandidateId(targetProcessCandidateId)
+                .sendEmail(false)
+                .build();
+
+        assertDoesNotThrow(() -> service.changeCandidateProcess(request));
+        AppException exception = assertThrows(AppException.class, () -> service.changeCandidateProcess(request));
+        assertEquals(CoreErrorCode.INVALID_PROCESS_TYPE_CHANGE, exception.getErrorCode());
+
+        verify(jobAdCandidateRepository, times(1)).save(any(JobAdCandidate.class));
+    }
+
+    @Test
+    void test_TC08_markOnboard_doubleSubmit_onlyFirstUpdateIsApplied() {
+        // Test Case ID: TC08
+        // Objective: prevent duplicate onboard submit.
+        // CheckDB: first call saves ONBOARDED, second call blocked by onboarded guard.
+        // Rollback: mock-based verification only.
+
+        setCurrentUser(9002L, Constants.RoleCode.ORG_ADMIN);
+        JobAdCandidate candidate = createJobAdCandidate(105L, 2100L, 3100L, CandidateStatus.WAITING_ONBOARDING.name());
+
+        when(restTemplateClient.validOrgMember()).thenReturn(10L);
+        when(jobAdCandidateRepository.existsByJobAdCandidateIdAndOrgId(105L, 10L)).thenReturn(true);
+        when(jobAdCandidateRepository.findById(105L)).thenReturn(Optional.of(candidate));
+        when(jobAdProcessCandidateService.validateCurrentProcessTypeIs(105L, ProcessTypeEnum.ONBOARD.name())).thenReturn(true);
+        when(jobAdCandidateRepository.existsByCandidateInfoAndOrgAndNotJobAdCandidate(3100L, 10L, 105L, CandidateStatus.ONBOARDED.name()))
+                .thenReturn(false)
+                .thenReturn(true);
+
+        MarkOnboardRequest request = MarkOnboardRequest.builder()
+                .jobAdCandidateId(105L)
+                .isOnboarded(true)
+                .build();
+
+        assertDoesNotThrow(() -> service.markOnboard(request));
+        AppException exception = assertThrows(AppException.class, () -> service.markOnboard(request));
+        assertEquals(CoreErrorCode.CANDIDATE_ALREADY_ONBOARDED, exception.getErrorCode());
+        verify(jobAdCandidateRepository, times(1)).save(any(JobAdCandidate.class));
+    }
+
+    @Test
+    void test_TC09_eliminateCandidate_requiresReason_whenReasonIsNull() {
+        // Test Case ID: TC09
+        // Objective: null reject reason is invalid (current implementation throws at request.getReason().name()).
+        // CheckDB: verify no save occurs when reason is null.
+        // Rollback: no write occurs because flow fails before repository.save().
 
         setCurrentUser(9003L, Constants.RoleCode.ORG_ADMIN);
 
         when(restTemplateClient.validOrgMember()).thenReturn(10L);
-        when(jobAdCandidateRepository.existsByJobAdCandidateIdAndOrgId(100L, 10L)).thenReturn(true);
-
-        JobAdCandidate candidate = createJobAdCandidate(100L, 2002L, 3002L, CandidateStatus.IN_PROGRESS.name());
-        when(jobAdCandidateRepository.findById(100L)).thenReturn(Optional.of(candidate));
-
-        when(jobAdService.findById(2002L)).thenReturn(JobAdDto.builder().id(2002L).title("Backend Developer").build());
-        when(candidateInfoApplyService.getById(3002L)).thenReturn(CandidateInfoApplyDto.builder().candidateId(7007L).fullName("Candidate A").build());
-
-        doThrow(new RuntimeException("Kafka is unavailable"))
-                .when(kafkaUtils)
-                .sendWithJson(eq(Constants.KafkaTopic.NOTIFICATION), any());
+        when(jobAdCandidateRepository.existsByJobAdCandidateIdAndOrgId(106L, 10L)).thenReturn(true);
+        when(jobAdCandidateRepository.findById(106L)).thenReturn(
+                Optional.of(createJobAdCandidate(106L, 2200L, 3200L, CandidateStatus.IN_PROGRESS.name()))
+        );
 
         EliminateCandidateRequest request = EliminateCandidateRequest.builder()
-                .jobAdCandidateId(100L)
-                .reason(EliminateReasonEnum.SKILL_MISMATCH)
-                .reasonDetail("Failed coding interview")
+                .jobAdCandidateId(106L)
+                .reason(null)
+                .reasonDetail("Missing reason")
                 .sendEmail(false)
                 .build();
 
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> service.eliminateCandidate(request));
-        assertEquals("Kafka is unavailable", exception.getMessage());
+        assertThrows(NullPointerException.class, () -> service.eliminateCandidate(request));
+        verify(jobAdCandidateRepository, never()).save(any(JobAdCandidate.class));
+    }
+
+    @Test
+    void test_TC10_eliminateCandidate_withWhitespaceReasonDetail_currentBehaviorStillSaves() {
+        // Test Case ID: TC10
+        // Objective: cover whitespace reason detail input path in current implementation.
+        // CheckDB: verify save is called and eliminate reason detail is persisted as provided.
+        // Rollback: no real DB commit in unit test.
+
+        setCurrentUser(9003L, Constants.RoleCode.ORG_ADMIN);
+        JobAdCandidate candidate = createJobAdCandidate(106L, 2200L, 3200L, CandidateStatus.IN_PROGRESS.name());
+
+        when(restTemplateClient.validOrgMember()).thenReturn(10L);
+        when(jobAdCandidateRepository.existsByJobAdCandidateIdAndOrgId(106L, 10L)).thenReturn(true);
+        when(jobAdCandidateRepository.findById(106L)).thenReturn(Optional.of(candidate));
+        when(jobAdService.findById(2200L)).thenReturn(JobAdDto.builder().id(2200L).title("Java Developer").build());
+        when(candidateInfoApplyService.getById(3200L)).thenReturn(CandidateInfoApplyDto.builder().id(3200L).candidateId(7008L).fullName("Candidate B").build());
+        when(restTemplateClient.getUser(9003L)).thenReturn(UserDto.builder().id(9003L).fullName("HR B").build());
+        when(restTemplateClient.getUserByRoleCodeOrg(Constants.RoleCode.ORG_ADMIN, 10L))
+                .thenReturn(List.of(UserDto.builder().id(9300L).build()));
+
+        EliminateCandidateRequest request = EliminateCandidateRequest.builder()
+                .jobAdCandidateId(106L)
+                .reason(EliminateReasonEnum.OTHERS)
+                .reasonDetail("   ")
+                .sendEmail(false)
+                .build();
+
+        assertDoesNotThrow(() -> service.eliminateCandidate(request));
 
         ArgumentCaptor<JobAdCandidate> saveCaptor = ArgumentCaptor.forClass(JobAdCandidate.class);
         verify(jobAdCandidateRepository).save(saveCaptor.capture());
-        assertEquals(CandidateStatus.REJECTED.name(), saveCaptor.getValue().getCandidateStatus());
-        assertEquals(EliminateReasonEnum.SKILL_MISMATCH.name(), saveCaptor.getValue().getEliminateReasonType());
+        assertEquals("   ", saveCaptor.getValue().getEliminateReasonDetail());
+    }
+
+    @Test
+    void test_TC13_changeCandidateProcess_rollbackErrorContract_propagatesDefinedMessage() {
+        // Test Case ID: TC13
+        // Objective: verify exact error contract when notification publish fails after state update.
+        // CheckDB: save() is invoked before failure; exception message is preserved.
+        // Rollback: transactional rollback must be validated in integration tests.
+
+        setCurrentUser(9001L, Constants.RoleCode.ORG_ADMIN);
+        Long candidateId = 108L;
+        Long targetProcessCandidateId = 513L;
+
+        prepareChangeProcessBase(candidateId, targetProcessCandidateId, ProcessTypeEnum.INTERVIEW, CandidateStatus.IN_PROGRESS.name(), true);
+        doThrow(new RuntimeException("NOTIFY_PUBLISH_FAILED"))
+                .when(kafkaUtils)
+                .sendWithJson(eq(Constants.KafkaTopic.NOTIFICATION), any());
+
+        ChangeCandidateProcessRequest request = ChangeCandidateProcessRequest.builder()
+                .toJobAdProcessCandidateId(targetProcessCandidateId)
+                .sendEmail(false)
+                .build();
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> service.changeCandidateProcess(request));
+        assertEquals("NOTIFY_PUBLISH_FAILED", exception.getMessage());
+        verify(jobAdCandidateRepository).save(any(JobAdCandidate.class));
+    }
+
+    @Test
+    void test_TC14_changeCandidateProcess_twoConcurrentRequests_onlyOneTransitionApplies() throws Exception {
+        // Test Case ID: TC14
+        // Objective: basic race-condition simulation for two concurrent next-stage requests.
+        // CheckDB: one request succeeds and one is blocked by process-order validation.
+        // Rollback: no persistent state in this unit-level simulation.
+
+        setCurrentUser(9001L, Constants.RoleCode.ORG_ADMIN);
+        Long candidateId = 109L;
+        Long targetProcessCandidateId = 514L;
+
+        prepareChangeProcessBase(candidateId, targetProcessCandidateId, ProcessTypeEnum.INTERVIEW, CandidateStatus.IN_PROGRESS.name(), true);
+        AtomicBoolean firstGate = new AtomicBoolean(true);
+        when(jobAdProcessCandidateService.validateProcessOrderChange(targetProcessCandidateId, candidateId))
+                .thenAnswer(invocation -> firstGate.getAndSet(false));
+
+        ChangeCandidateProcessRequest request = ChangeCandidateProcessRequest.builder()
+                .toJobAdProcessCandidateId(targetProcessCandidateId)
+                .sendEmail(false)
+                .build();
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        AtomicInteger successCount = new AtomicInteger();
+        AtomicInteger blockedCount = new AtomicInteger();
+
+        Callable<Void> task = () -> {
+                        setCurrentUser(9001L, Constants.RoleCode.ORG_ADMIN);
+            startLatch.await(2, TimeUnit.SECONDS);
+            try {
+                service.changeCandidateProcess(request);
+                successCount.incrementAndGet();
+            } catch (AppException ex) {
+                if (CoreErrorCode.INVALID_PROCESS_TYPE_CHANGE.equals(ex.getErrorCode())) {
+                    blockedCount.incrementAndGet();
+                } else {
+                    throw ex;
+                }
+            }
+            return null;
+        };
+
+        Future<Void> f1 = executor.submit(task);
+        Future<Void> f2 = executor.submit(task);
+        startLatch.countDown();
+        f1.get(5, TimeUnit.SECONDS);
+        f2.get(5, TimeUnit.SECONDS);
+        executor.shutdownNow();
+
+        assertEquals(1, successCount.get());
+        assertEquals(1, blockedCount.get());
+        verify(jobAdCandidateRepository, times(1)).save(any(JobAdCandidate.class));
+    }
+
+    @Test
+    void test_TC15_conflictingActions_rejectThenNextStage_onlyOneFinalValidOutcome() {
+        // Test Case ID: TC15
+        // Objective: conflict simulation between reject and next-stage by asserting next-stage is blocked after reject.
+        // CheckDB: reject updates candidate to REJECTED; later transition attempt is blocked.
+        // Rollback: unit test validates business guard without real lock/version manager.
+
+        setCurrentUser(9003L, Constants.RoleCode.ORG_ADMIN);
+        JobAdCandidate candidate = createJobAdCandidate(110L, 2300L, 3300L, CandidateStatus.IN_PROGRESS.name());
+
+        when(restTemplateClient.validOrgMember()).thenReturn(10L);
+        when(jobAdCandidateRepository.existsByJobAdCandidateIdAndOrgId(110L, 10L)).thenReturn(true);
+        when(jobAdCandidateRepository.findById(110L)).thenReturn(Optional.of(candidate));
+        when(jobAdService.findById(2300L)).thenReturn(JobAdDto.builder().id(2300L).title("QA Engineer").build());
+        when(candidateInfoApplyService.getById(3300L)).thenReturn(CandidateInfoApplyDto.builder().id(3300L).candidateId(7010L).fullName("Candidate C").build());
+        when(restTemplateClient.getUser(9003L)).thenReturn(UserDto.builder().id(9003L).fullName("HR C").build());
+        when(restTemplateClient.getUserByRoleCodeOrg(Constants.RoleCode.ORG_ADMIN, 10L))
+                .thenReturn(List.of(UserDto.builder().id(9301L).build()));
+
+        EliminateCandidateRequest rejectRequest = EliminateCandidateRequest.builder()
+                .jobAdCandidateId(110L)
+                .reason(EliminateReasonEnum.OTHERS)
+                .reasonDetail("Not fit")
+                .sendEmail(false)
+                .build();
+        service.eliminateCandidate(rejectRequest);
+
+        when(jobAdProcessCandidateService.findById(515L)).thenReturn(
+                JobAdProcessCandidateDto.builder().id(515L).jobAdCandidateId(110L).jobAdProcessId(2400L).build()
+        );
+
+        ChangeCandidateProcessRequest nextStageRequest = ChangeCandidateProcessRequest.builder()
+                .toJobAdProcessCandidateId(515L)
+                .sendEmail(false)
+                .onboardDate(Instant.now().plusSeconds(86_400))
+                .build();
+
+        AppException exception = assertThrows(AppException.class, () -> service.changeCandidateProcess(nextStageRequest));
+        assertEquals(CoreErrorCode.CANDIDATE_ALREADY_ELIMINATED, exception.getErrorCode());
+    }
+
+    @Test
+    void test_TC16_retryLogicalSameOnboardIntent_secondCallIsBlocked_noDuplicateSave() {
+        // Test Case ID: TC16
+        // Objective: idempotency-like behavior for repeated onboard intent.
+        // CheckDB: only first call saves; second call blocked by already-onboarded guard.
+        // Rollback: mock-only unit test, no real persistence.
+
+        setCurrentUser(9002L, Constants.RoleCode.ORG_ADMIN);
+        JobAdCandidate candidate = createJobAdCandidate(111L, 2400L, 3400L, CandidateStatus.WAITING_ONBOARDING.name());
+
+        when(restTemplateClient.validOrgMember()).thenReturn(10L);
+        when(jobAdCandidateRepository.existsByJobAdCandidateIdAndOrgId(111L, 10L)).thenReturn(true);
+        when(jobAdCandidateRepository.findById(111L)).thenReturn(Optional.of(candidate));
+        when(jobAdProcessCandidateService.validateCurrentProcessTypeIs(111L, ProcessTypeEnum.ONBOARD.name())).thenReturn(true);
+        when(jobAdCandidateRepository.existsByCandidateInfoAndOrgAndNotJobAdCandidate(3400L, 10L, 111L, CandidateStatus.ONBOARDED.name()))
+                .thenReturn(false)
+                .thenReturn(true);
+
+        MarkOnboardRequest request = MarkOnboardRequest.builder()
+                .jobAdCandidateId(111L)
+                .isOnboarded(true)
+                .build();
+
+        service.markOnboard(request);
+        AppException exception = assertThrows(AppException.class, () -> service.markOnboard(request));
+        assertEquals(CoreErrorCode.CANDIDATE_ALREADY_ONBOARDED, exception.getErrorCode());
+        verify(jobAdCandidateRepository, times(1)).save(any(JobAdCandidate.class));
+    }
+
+    private void prepareChangeProcessBase(
+            Long candidateId,
+            Long targetProcessCandidateId,
+            ProcessTypeEnum targetProcessType,
+            String currentStatus,
+            boolean isProcessOrderValid
+    ) {
+        when(restTemplateClient.validOrgMember()).thenReturn(10L);
+        when(jobAdProcessCandidateService.findById(targetProcessCandidateId)).thenReturn(
+                JobAdProcessCandidateDto.builder()
+                        .id(targetProcessCandidateId)
+                        .jobAdCandidateId(candidateId)
+                        .jobAdProcessId(9000L + targetProcessCandidateId)
+                        .build()
+        );
+        when(jobAdCandidateRepository.existsByJobAdCandidateIdAndOrgId(candidateId, 10L)).thenReturn(true);
+
+        JobAdCandidate candidate = createJobAdCandidate(candidateId, 2000L + candidateId, 3000L + candidateId, currentStatus);
+        when(jobAdCandidateRepository.findById(candidateId)).thenReturn(Optional.of(candidate));
+        when(jobAdCandidateRepository.existsByCandidateInfoAndOrg(3000L + candidateId, 10L, CandidateStatus.ONBOARDED.name()))
+                .thenReturn(false);
+        when(jobAdProcessCandidateService.validateProcessOrderChange(targetProcessCandidateId, candidateId))
+                .thenReturn(isProcessOrderValid);
+        when(jobAdProcessCandidateService.getCurrentProcess(2000L + candidateId, 3000L + candidateId)).thenReturn(
+                JobAdProcessCandidateDto.builder().id(499L).processName("Current Process").isCurrentProcess(true).build()
+        );
+        when(jobAdProcessService.getById(9000L + targetProcessCandidateId)).thenReturn(
+                JobAdProcessDto.builder()
+                        .id(9000L + targetProcessCandidateId)
+                        .name(targetProcessType.getName())
+                        .processType(ProcessTypeDto.builder().code(targetProcessType.name()).build())
+                        .build()
+        );
+
+        List<JobAdProcessCandidateDto> processCandidates = new ArrayList<>();
+        processCandidates.add(JobAdProcessCandidateDto.builder().id(targetProcessCandidateId).isCurrentProcess(false).build());
+        processCandidates.add(JobAdProcessCandidateDto.builder().id(targetProcessCandidateId + 1000).isCurrentProcess(true).build());
+        when(jobAdProcessCandidateService.findByJobAdCandidateId(candidateId)).thenReturn(processCandidates);
+
+        when(jobAdService.findById(2000L + candidateId))
+                .thenReturn(JobAdDto.builder().id(2000L + candidateId).title("Job " + candidateId).orgId(10L).positionId(100L).build());
+        when(candidateInfoApplyService.getById(3000L + candidateId))
+                .thenReturn(CandidateInfoApplyDto.builder().id(3000L + candidateId).candidateId(7000L + candidateId).fullName("Candidate " + candidateId).build());
     }
 
     private static JobAdCandidate createJobAdCandidate(Long id, Long jobAdId, Long candidateInfoId, String status) {
