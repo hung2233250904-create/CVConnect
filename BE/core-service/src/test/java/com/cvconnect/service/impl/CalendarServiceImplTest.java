@@ -84,9 +84,12 @@ class CalendarServiceImplTest {
         SecurityContextHolder.clearContext();
     }
 
+    // TC01
+    // Given: request date is today (business rule requires scheduling strictly after today).
+    // When: createCalendar is invoked.
+    // Then: DATE_BEFORE_TODAY is thrown and CheckDB confirms no new calendar row is inserted.
     @Test
     void test_TC01_rejectScheduleCreation_whenDateIsToday() {
-        // CheckDB: DB must not change when validation fails.
         long before = calendarRepository.count();
 
         CalendarRequest request = buildBaseOnlineRequest(LocalDate.now(), 60, true, List.of(101L), List.of(10L));
@@ -97,9 +100,12 @@ class CalendarServiceImplTest {
         assertEquals(before, calendarRepository.count());
     }
 
+    // TC02
+    // Given: request date is in the past.
+    // When: createCalendar is invoked.
+    // Then: DATE_BEFORE_TODAY is thrown and CheckDB confirms database state is unchanged.
     @Test
     void test_TC02_rejectScheduleCreation_whenDateIsInThePast() {
-        // CheckDB: DB must not change when validation fails.
         long before = calendarRepository.count();
 
         CalendarRequest request = buildBaseOnlineRequest(LocalDate.now().minusDays(1), 60, true, List.of(101L), List.of(10L));
@@ -110,9 +116,12 @@ class CalendarServiceImplTest {
         assertEquals(before, calendarRepository.count());
     }
 
+    // TC03
+    // Given: valid input with tomorrow date, online meeting, and valid participants/candidates.
+    // When: createCalendar is invoked.
+    // Then: one calendar is created, panels are inserted, and candidate mapping rows are persisted (CheckDB).
     @Test
     void test_TC03_allowScheduleCreation_whenDateIsTomorrow() {
-        // CheckDB: calendar/interview_panel/calendar_candidate_info must be inserted.
         long beforeCalendar = calendarRepository.count();
 
         CalendarRequest request = buildBaseOnlineRequest(LocalDate.now().plusDays(1), 60, true, List.of(101L), List.of(10L, 11L));
@@ -131,9 +140,12 @@ class CalendarServiceImplTest {
         assertNotNull(c1);
     }
 
+    // TC04
+    // Given: durationMinutes is zero (invalid boundary value).
+    // When: createCalendar is invoked.
+    // Then: DURATION_MINUTES_INVALID is thrown and no DB write occurs.
     @Test
     void test_TC04_rejectScheduleCreation_whenDurationIsZero() {
-        // CheckDB: DB must not change when validation fails.
         long before = calendarRepository.count();
 
         CalendarRequest request = buildBaseOnlineRequest(LocalDate.now().plusDays(1), 0, true, List.of(101L), List.of(10L));
@@ -144,9 +156,12 @@ class CalendarServiceImplTest {
         assertEquals(before, calendarRepository.count());
     }
 
+    // TC05
+    // Given: durationMinutes is negative.
+    // When: createCalendar is invoked.
+    // Then: DURATION_MINUTES_INVALID is thrown and CheckDB confirms no inserted record.
     @Test
     void test_TC05_rejectScheduleCreation_whenDurationIsNegative() {
-        // CheckDB: DB must not change when validation fails.
         long before = calendarRepository.count();
 
         CalendarRequest request = buildBaseOnlineRequest(LocalDate.now().plusDays(1), -30, true, List.of(101L), List.of(10L));
@@ -157,9 +172,12 @@ class CalendarServiceImplTest {
         assertEquals(before, calendarRepository.count());
     }
 
+    // TC06
+    // Given: interview type is offline but orgAddressId is null.
+    // When: createCalendar is invoked.
+    // Then: MEETING_ADDRESS_NOT_NULL is thrown and DB remains unchanged.
     @Test
     void test_TC06_rejectOfflineInterview_whenNoAddressIsProvided() {
-        // CheckDB: DB must not change when validation fails.
         long before = calendarRepository.count();
 
         CalendarRequest request = buildBaseOfflineRequest(LocalDate.now().plusDays(1), 60, List.of(101L), List.of(10L));
@@ -171,9 +189,12 @@ class CalendarServiceImplTest {
         assertEquals(before, calendarRepository.count());
     }
 
+    // TC07
+    // Given: interview type is online but meetingLink is missing.
+    // When: createCalendar is invoked.
+    // Then: MEETING_LINK_NOT_NULL is thrown and no calendar row is created.
     @Test
     void test_TC07_rejectOnlineInterview_whenNoMeetingLinkIsProvided() {
-        // CheckDB: DB must not change when validation fails.
         long before = calendarRepository.count();
 
         CalendarRequest request = buildBaseOnlineRequest(LocalDate.now().plusDays(1), 60, true, List.of(101L), List.of(10L));
@@ -185,9 +206,12 @@ class CalendarServiceImplTest {
         assertEquals(before, calendarRepository.count());
     }
 
+    // TC08
+    // Given: at least one interviewer is not a member of the organization.
+    // When: createCalendar is invoked.
+    // Then: ACCESS_DENIED is thrown and CheckDB confirms transaction does not insert data.
     @Test
     void test_TC08_rejectSchedule_whenInterviewerDoesNotBelongToOrg() {
-        // CheckDB: DB must not change when participant validation fails.
         long before = calendarRepository.count();
 
         CalendarRequest request = buildBaseOnlineRequest(LocalDate.now().plusDays(1), 60, true, List.of(101L), List.of(99L));
@@ -198,9 +222,12 @@ class CalendarServiceImplTest {
         assertEquals(before, calendarRepository.count());
     }
 
+    // TC09
+    // Given: candidate list is not in the expected process stage.
+    // When: createCalendar is invoked.
+    // Then: CANDIDATE_INFO_EXISTS_NOT_IN_PROCESS is thrown and DB is unchanged.
     @Test
     void test_TC09_rejectSchedule_whenCandidateNotInTargetProcess() {
-        // CheckDB: DB must not change when candidate-process validation fails.
         long before = calendarRepository.count();
 
         CalendarRequest request = buildBaseOnlineRequest(LocalDate.now().plusDays(1), 60, true, List.of(101L), List.of(10L));
@@ -211,9 +238,12 @@ class CalendarServiceImplTest {
         assertEquals(before, calendarRepository.count());
     }
 
+    // TC10
+    // Given: joinSameTime=true with multiple candidates and 60-minute duration.
+    // When: calendar is created.
+    // Then: all candidates receive the same slot boundaries (same start and end time).
     @Test
     void test_TC10_allCandidatesShareSameSlot_whenJoinSameTimeIsTrue() {
-        // CheckDB: all candidate slots should have same start/end time.
         CalendarRequest request = buildBaseOnlineRequest(LocalDate.now().plusDays(2), 60, true, List.of(1L, 2L, 3L), List.of(10L));
         request.setTimeFrom(LocalTime.of(9, 0));
         stubValidationDependencies(request, true, true);
@@ -233,9 +263,12 @@ class CalendarServiceImplTest {
         assertEquals(LocalTime.of(10, 0), c3.getTimeTo());
     }
 
+    // TC11
+    // Given: joinSameTime=false with multiple candidates and 30-minute duration.
+    // When: calendar is created.
+    // Then: candidate slots are generated sequentially without overlap (09:00-09:30, 09:30-10:00, 10:00-10:30).
     @Test
     void test_TC11_eachCandidateGetsSequentialSlot_whenJoinSameTimeIsFalse() {
-        // CheckDB: candidate slots should be sequential by duration.
         CalendarRequest request = buildBaseOnlineRequest(LocalDate.now().plusDays(2), 30, false, List.of(1L, 2L, 3L), List.of(10L));
         request.setTimeFrom(LocalTime.of(9, 0));
         stubValidationDependencies(request, true, true);
@@ -255,9 +288,12 @@ class CalendarServiceImplTest {
         assertEquals(LocalTime.of(10, 30), c3.getTimeTo());
     }
 
+    // TC12
+    // Given: joinSameTime=true and at least one candidate slot is created.
+    // When: createCalendar completes.
+    // Then: notification is emitted exactly once for the shared interview slot.
     @Test
     void test_TC12_exactlyOneNotification_whenJoinSameTimeIsTrue() {
-        // CheckDB: DB must contain created rows; notification should be sent once.
         CalendarRequest request = buildBaseOnlineRequest(LocalDate.now().plusDays(2), 60, true, List.of(1L), List.of(10L, 11L));
         stubValidationDependencies(request, true, true);
         stubAfterCreateDependencies(request);
@@ -267,9 +303,12 @@ class CalendarServiceImplTest {
         verify(kafkaUtils, times(1)).sendWithJson(eq(Constants.KafkaTopic.NOTIFICATION), any(NotificationDto.class));
     }
 
+    // TC13
+    // Given: joinSameTime=false for three candidates (three distinct slots).
+    // When: createCalendar completes.
+    // Then: notification is emitted once per candidate slot (total equals slot count).
     @Test
     void test_TC13_oneNotificationPerCandidateSlot_whenJoinSameTimeIsFalse() {
-        // CheckDB: DB must contain candidate slots; notification count should match slot count.
         CalendarRequest request = buildBaseOnlineRequest(LocalDate.now().plusDays(2), 30, false, List.of(1L, 2L, 3L), List.of(10L));
         stubValidationDependencies(request, true, true);
         stubAfterCreateDependencies(request);
@@ -279,9 +318,12 @@ class CalendarServiceImplTest {
         verify(kafkaUtils, times(3)).sendWithJson(eq(Constants.KafkaTopic.NOTIFICATION), any(NotificationDto.class));
     }
 
+    // TC14
+    // Given: local datetime in HCM timezone.
+    // When: utility converts from HCM to UTC.
+    // Then: converted instant equals expected UTC timestamp (10:00 HCM -> 03:00 UTC).
     @Test
     void test_TC14_timezoneConversion_HCM10h_to_UTC03h() {
-        // Utility test: no DB write/read.
         LocalDateTime localDateTime = LocalDateTime.of(2025, 9, 15, 10, 0, 0);
 
         Instant result = CoreServiceUtils.convertLocalDateTimeToInstant(
@@ -293,9 +335,12 @@ class CalendarServiceImplTest {
         assertEquals(Instant.parse("2025-09-15T03:00:00Z"), result);
     }
 
+    // TC15
+    // Given: a valid calendar request with specific date/time and 90-minute duration.
+    // When: createCalendar publishes notification.
+    // Then: notification message contains formatted Vietnamese time-range string "ngay dd/MM tu HH:mm den HH:mm".
     @Test
     void test_TC15_timeRangeStringFormattedAs_ddMM_HHmm_viaNotificationMessage() {
-        // CheckDB: calendar created; notification message should contain formatted time range.
         LocalDate date = LocalDate.now().plusDays(4);
         CalendarRequest request = buildBaseOnlineRequest(date, 90, true, List.of(1L), List.of(10L));
         request.setTimeFrom(LocalTime.of(9, 0));

@@ -102,6 +102,8 @@ class JobAdCandidateServiceImplTest {
         SecurityContextHolder.clearContext();
     }
 
+        // TC01: Happy path - candidate is moved from Applied to Screening.
+        // Expectation: status becomes IN_PROGRESS and entity is persisted once.
     @Test
     void test_TC01_applyToScreening_success() {
         setCurrentUser(9001L, Constants.RoleCode.ORG_ADMIN);
@@ -119,6 +121,8 @@ class JobAdCandidateServiceImplTest {
         assertEquals(CandidateStatus.IN_PROGRESS.name(), captor.getValue().getCandidateStatus());
     }
 
+        // TC02: Happy path - candidate in screening can be moved to interview.
+        // Expectation: no exception is thrown and save() is called.
     @Test
     void test_TC02_screeningToInterview_success() {
         setCurrentUser(9001L, Constants.RoleCode.ORG_ADMIN);
@@ -133,6 +137,8 @@ class JobAdCandidateServiceImplTest {
         verify(jobAdCandidateRepository).save(any(JobAdCandidate.class));
     }
 
+        // TC03: Happy path - candidate in interview can be moved to offer stage.
+        // Expectation: process change succeeds and candidate is saved.
     @Test
     void test_TC03_interviewToOffer_success() {
         setCurrentUser(9001L, Constants.RoleCode.ORG_ADMIN);
@@ -147,6 +153,8 @@ class JobAdCandidateServiceImplTest {
         verify(jobAdCandidateRepository).save(any(JobAdCandidate.class));
     }
 
+        // TC04: Happy path - candidate in offer can be moved to onboard with onboard date.
+        // Expectation: status becomes WAITING_ONBOARDING and onboard date is persisted.
     @Test
     void test_TC04_offerToOnboard_success() {
         setCurrentUser(9001L, Constants.RoleCode.ORG_ADMIN);
@@ -170,6 +178,8 @@ class JobAdCandidateServiceImplTest {
         assertEquals(onboardDate, captor.getValue().getOnboardDate());
     }
 
+        // TC05: Guard rule - rejected candidate cannot be moved to any next process.
+        // Expectation: service throws CANDIDATE_ALREADY_ELIMINATED and does not save.
     @Test
     void test_TC05_blockTransitionAfterRejected() {
         setCurrentUser(9001L, Constants.RoleCode.ORG_ADMIN);
@@ -193,6 +203,8 @@ class JobAdCandidateServiceImplTest {
         verify(jobAdCandidateRepository, never()).save(any(JobAdCandidate.class));
     }
 
+        // TC06: Guard rule - candidate cannot be marked onboard if current process is not ONBOARD.
+        // Expectation: service throws CANDIDATE_NOT_IN_ONBOARD_PROCESS and does not save.
     @Test
     void test_TC06_blockOnboardBeforeOffer() {
         setCurrentUser(9002L, Constants.RoleCode.ORG_ADMIN);
@@ -210,6 +222,8 @@ class JobAdCandidateServiceImplTest {
         verify(jobAdCandidateRepository, never()).save(any(JobAdCandidate.class));
     }
 
+        // TC07: Idempotency-like behavior - repeated next-stage request should only pass once.
+        // Expectation: first call succeeds, second call is blocked with INVALID_PROCESS_TYPE_CHANGE.
     @Test
     void test_TC07_preventDoubleClickTransitions() {
         setCurrentUser(9001L, Constants.RoleCode.ORG_ADMIN);
@@ -227,6 +241,8 @@ class JobAdCandidateServiceImplTest {
         verify(jobAdCandidateRepository, times(1)).save(any(JobAdCandidate.class));
     }
 
+        // TC08: Duplicate submit protection for onboard action.
+        // Expectation: first markOnboard succeeds, second call fails with CANDIDATE_ALREADY_ONBOARDED.
     @Test
     void test_TC08_preventDoubleSubmitOnboard() {
         setCurrentUser(9002L, Constants.RoleCode.ORG_ADMIN);
@@ -248,6 +264,8 @@ class JobAdCandidateServiceImplTest {
         verify(jobAdCandidateRepository, times(1)).save(any(JobAdCandidate.class));
     }
 
+        // TC09: Validation rule - reject action requires non-null reason enum.
+        // Expectation: current behavior throws NullPointerException and no data is saved.
     @Test
     void test_TC09_rejectRequiresReason_nullReason() {
         setCurrentUser(9003L, Constants.RoleCode.ORG_ADMIN);
@@ -268,6 +286,8 @@ class JobAdCandidateServiceImplTest {
         verify(jobAdCandidateRepository, never()).save(any(JobAdCandidate.class));
     }
 
+        // TC10: Current documented behavior - whitespace reasonDetail is still accepted.
+        // Expectation: eliminateCandidate completes and save() is called once.
     @Test
     void test_TC10_rejectFailsWithWhitespaceReason_currentBehaviorDocumented() {
         setCurrentUser(9003L, Constants.RoleCode.ORG_ADMIN);
@@ -293,6 +313,8 @@ class JobAdCandidateServiceImplTest {
         verify(jobAdCandidateRepository, times(1)).save(any(JobAdCandidate.class));
     }
 
+        // TC11: Validation rule - moving to ONBOARD requires onboardDate.
+        // Expectation: service throws ONBOARD_DATE_REQUIRED and does not save.
     @Test
     void test_TC11_onboardRequiresDate() {
         setCurrentUser(9001L, Constants.RoleCode.ORG_ADMIN);
@@ -309,6 +331,8 @@ class JobAdCandidateServiceImplTest {
         verify(jobAdCandidateRepository, never()).save(any(JobAdCandidate.class));
     }
 
+        // TC12: Error propagation scenario - audit/kafka publish fails after status update path.
+        // Expectation: runtime exception is propagated; save invocation is verified for current behavior.
     @Test
     void test_TC12_rollbackWhenAuditFails_afterStatusUpdate() {
         setCurrentUser(9001L, Constants.RoleCode.ORG_ADMIN);
@@ -326,6 +350,8 @@ class JobAdCandidateServiceImplTest {
         verify(jobAdCandidateRepository, times(1)).save(any(JobAdCandidate.class));
     }
 
+        // TC13: Concurrency scenario - two concurrent requests attempt same stage transition.
+        // Expectation: exactly one request succeeds and one request is blocked by process-order validation.
     @Test
     void test_TC13_twoConcurrentRequestsForNextStage_onlyOneApplies() throws Exception {
         setCurrentUser(9001L, Constants.RoleCode.ORG_ADMIN);
@@ -373,6 +399,8 @@ class JobAdCandidateServiceImplTest {
         verify(jobAdCandidateRepository, times(1)).save(any(JobAdCandidate.class));
     }
 
+        // TC14: Conflict scenario - candidate is rejected first, then next-stage action is attempted.
+        // Expectation: second action is blocked with CANDIDATE_ALREADY_ELIMINATED.
     @Test
     void test_TC14_conflictingActions_rejectVsNextStage_onlyOneFinalOutcome() {
         setCurrentUser(9003L, Constants.RoleCode.ORG_ADMIN);
@@ -409,9 +437,10 @@ class JobAdCandidateServiceImplTest {
         assertEquals(CoreErrorCode.CANDIDATE_ALREADY_ELIMINATED, ex.getErrorCode());
     }
 
+        // TC15: Retry safety for same logical intent without explicit requestId.
+        // Expectation: first request is processed, second equivalent request is rejected as already onboarded.
     @Test
     void test_TC15_retrySameLogicalRequest_notReprocessed() {
-        // Service has no requestId input, so we validate same logical intent is blocked on second run.
         setCurrentUser(9002L, Constants.RoleCode.ORG_ADMIN);
         JobAdCandidate candidate = createJobAdCandidate(111L, 2400L, 3400L, CandidateStatus.WAITING_ONBOARDING.name());
 
