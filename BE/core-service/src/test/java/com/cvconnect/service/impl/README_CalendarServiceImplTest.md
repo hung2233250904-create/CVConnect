@@ -40,8 +40,4 @@ cd BE/core-service
 ./mvnw.cmd -Dtest=CalendarServiceImplTest test
 ```
 
-## Expected result
-- Tests pass with no `Failures` and no `Errors`.
-- Coverage report is generated in `target/site/jacoco`.
-- DB is rolled back to pre-test state after each DB-changing test.
 

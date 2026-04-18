@@ -13,6 +13,10 @@ spring:
     hibernate:
       ddl-auto: none
     show_sql: false
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
   kafka:
     producer:
       bootstrap-servers: ${KAFKA_HOST:localhost}:${KAFKA_PORT:9094}
