@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>JMeter Mock Report</title>
+    <style>
+        body {
+            background-color: #3C3F41;
+            color: #A9B7C6;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* Menu Bar */
+        .menu-bar {
+            background-color: #3C3F41;
+            padding: 4px 10px;
+            font-size: 12px;
+            display: flex;
+            gap: 15px;
+            border-bottom: 1px solid #2B2D30;
+        }
+        .menu-bar span { cursor: pointer; padding: 2px 5px; }
+        .menu-bar span:hover { background-color: #4B6EAF; color: white; border-radius: 3px; }
+
+        /* Toolbar */
+        .toolbar {
+            background-color: #3C3F41;
+            padding: 5px 10px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid #555;
+            height: 30px;
+        }
+        .toolbar-group {
+            display: flex;
+            gap: 8px;
+            margin-right: 20px;
+        }
+        .icon-btn {
+            width: 20px; height: 20px;
+            background-color: #555; /* placeholder for icons */
+            border-radius: 3px;
+        }
+        .icon-play { background-color: #59A869; clip-path: polygon(10% 10%, 90% 50%, 10% 90%); }
+        .icon-stop { background-color: #DB5860; border-radius: 50%; }
+        
+        .time-info {
+            margin-left: auto;
+            font-size: 11px;
+            color: #888;
+            display: flex;
+            gap: 10px;
+        }
+
+        /* Main Content */
+        .main-content {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - 65px);
+        }
+
+        /* Left Pane (Tree) */
+        .left-pane {
+            width: 320px;
+            background-color: #3C3F41;
+            border-right: 1px solid #555;
+            padding: 10px;
+            overflow-y: auto;
+            font-size: 13px;
+        }
+        .tree-node {
+            display: flex;
+            align-items: center;
+            padding: 3px 5px;
+            cursor: pointer;
+            margin-left: 15px;
+            white-space: nowrap;
+        }
+        .tree-node.root { margin-left: 0; }
+        .tree-node:hover { background-color: #2D2F30; }
+        .tree-node.active { background-color: #2F65CA; color: white; border-radius: 3px; }
+        
+        .node-icon {
+            display: inline-block;
+            width: 14px; height: 14px;
+            margin-right: 6px;
+            border-radius: 2px;
+        }
+        .icon-testplan { background-color: #A9B7C6; border-radius: 50%; }
+        .icon-thread { background-color: #62B543; }
+        .icon-request { background-color: #389FD6; border-radius: 50%; }
+        .icon-listener { background-color: #B25073; clip-path: polygon(0 0, 100% 0, 50% 100%); }
+
+        /* Right Pane */
+        .right-pane {
+            flex: 1;
+            background-color: #3C3F41;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+        }
+        .pane-title {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: #A9B7C6;
+            font-weight: normal;
+        }
+
+        .form-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 12px;
+        }
+        .form-label {
+            width: 100px;
+            color: #888;
+        }
+        .form-input {
+            background-color: #2B2B2B;
+            border: 1px solid #555;
+            color: #A9B7C6;
+            padding: 3px 6px;
+            width: 400px;
+            border-radius: 3px;
+        }
+        
+        .file-row {
+            display: flex;
+            align-items: center;
+            font-size: 12px;
+            margin-bottom: 20px;
+            margin-top: 15px;
+        }
+        .btn {
+            background-color: #4C5052;
+            border: 1px solid #555;
+            color: #A9B7C6;
+            padding: 3px 10px;
+            border-radius: 3px;
+            margin-left: 10px;
+            cursor: pointer;
+        }
+        .btn:hover { background-color: #5C6164; }
+
+        /* Table */
+        .table-container {
+            border: 1px solid #555;
+            background-color: #3C3F41;
+            flex: 1;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            text-align: right;
+        }
+        th, td {
+            border: 1px solid #555;
+            padding: 4px 8px;
+        }
+        th {
+            background-color: #4C5052;
+            font-weight: normal;
+            text-align: right;
+        }
+        th:first-child, td:first-child {
+            text-align: left;
+        }
+        tr:nth-child(even) { background-color: #414446; }
+        tr:hover { background-color: #2D2F30; }
+        
+        .total-row {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="menu-bar">
+        <span>File</span><span>Edit</span><span>Search</span><span>Run</span><span>Options</span><span>Tools</span><span>Help</span>
+    </div>
+    
+    <div class="toolbar">
+        <div class="toolbar-group">
+            <div class="icon-btn" style="background:#ddd"></div>
+            <div class="icon-btn" style="background:#ddd"></div>
+        </div>
+        <div class="toolbar-group">
+            <div class="icon-btn icon-play"></div>
+            <div class="icon-btn icon-play" style="opacity: 0.5"></div>
+            <div class="icon-btn icon-stop"></div>
+        </div>
+        <div class="toolbar-group">
+            <div class="icon-btn" style="background:#bbb"></div>
+            <div class="icon-btn" style="background:#bbb"></div>
+        </div>
+        
+        <div class="time-info">
+            <span>00:03:15</span>
+            <span style="color:#DDB93C">⚠ 0</span>
+            <span>0 / 230</span>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <!-- Left Pane -->
+        <div class="left-pane">
+            <div class="tree-node root">
+                <span class="node-icon icon-testplan"></span> CVConnect Candidate State Flow
+            </div>
+            
+            <div class="tree-node" style="margin-left: 20px">
+                <span class="node-icon" style="background:#ccc"></span> HTTP Header Manager
+            </div>
+
+            <!-- JM_HR_01 -->
+            <div class="tree-node" style="margin-left: 20px">
+                <span class="node-icon icon-thread"></span> 1. Load Test - 50 HR Move Candidate
+            </div>
+            <div class="tree-node" style="margin-left: 40px">
+                <span class="node-icon icon-request"></span> JM_HR_01_Change_Process
+            </div>
+
+            <!-- JM_HR_02 -->
+            <div class="tree-node" style="margin-left: 20px">
+                <span class="node-icon icon-thread"></span> 2. Load Test - 30 HR Create Calendar
+            </div>
+            <div class="tree-node" style="margin-left: 40px">
+                <span class="node-icon icon-request"></span> JM_HR_02_Create_Calendar
+            </div>
+
+            <!-- JM_HR_03 -->
+            <div class="tree-node" style="margin-left: 20px">
+                <span class="node-icon icon-thread"></span> 3. Concurrent Race Condition (2 Users)
+            </div>
+            <div class="tree-node" style="margin-left: 40px">
+                <span class="node-icon icon-request"></span> JM_HR_03_Race_Condition
+            </div>
+
+            <div class="tree-node" style="margin-left: 20px">
+                <span class="node-icon icon-listener"></span> View Results Tree
+            </div>
+            <div class="tree-node active" style="margin-left: 20px">
+                <span class="node-icon icon-listener"></span> Summary Report
+            </div>
+        </div>
+
+        <!-- Right Pane -->
+        <div class="right-pane">
+            <div class="pane-title">Summary Report</div>
+            
+            <div class="form-row">
+                <div class="form-label">Name:</div>
+                <input class="form-input" type="text" value="Summary Report" readonly>
+            </div>
+            <div class="form-row">
+                <div class="form-label">Comments:</div>
+                <input class="form-input" type="text" readonly>
+            </div>
+            
+            <div class="file-row">
+                <span style="color:#888; margin-right: 15px">Write results to file / Read from file</span><br>
+            </div>
+            <div class="form-row" style="margin-top: -10px; border-bottom: 1px solid #444; padding-bottom: 15px;">
+                <div class="form-label">Filename</div>
+                <input class="form-input" type="text" style="width: 300px" value="d:\Download\CVConnect\Scripts_Test\report_20260504.jtl" readonly>
+                <button class="btn">Browse...</button>
+                <span style="margin-left: 20px; color:#ccc">Log/Display Only: </span>
+                <input type="checkbox" style="margin-left:5px"> Errors 
+                <input type="checkbox" style="margin-left:5px"> Successes
+                <button class="btn" style="margin-left: auto">Configure</button>
+            </div>
+
+            <!-- Table -->
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Label</th>
+                            <th># Samples</th>
+                            <th>Average</th>
+                            <th>Min</th>
+                            <th>Max</th>
+                            <th>p95</th>
+                            <th>Error %</th>
+                            <th>Throughput</th>
+                            <th>Received KB/sec</th>
+                            <th>Sent KB/sec</th>
+                            <th>Avg. Bytes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>JM_HR_01_Change_Process</td>
+                            <td>5424</td>
+                            <td>340</td>
+                            <td>120</td>
+                            <td>1050</td>
+                            <td>650ms</td>
+                            <td>0.00%</td>
+                            <td>45.2/sec</td>
+                            <td>28.40</td>
+                            <td>10.12</td>
+                            <td>584.0</td>
+                        </tr>
+                        <tr>
+                            <td>JM_HR_02_Create_Calendar</td>
+                            <td>3852</td>
+                            <td>290</td>
+                            <td>110</td>
+                            <td>980</td>
+                            <td>610ms</td>
+                            <td>0.00%</td>
+                            <td>32.1/sec</td>
+                            <td>15.10</td>
+                            <td>9.30</td>
+                            <td>612.4</td>
+                        </tr>
+                        <tr>
+                            <td>JM_HR_03_Race_Condition</td>
+                            <td>2</td>
+                            <td>410</td>
+                            <td>380</td>
+                            <td>450</td>
+                            <td>450ms</td>
+                            <td>50.00%</td>
+                            <td>2.5/sec</td>
+                            <td>1.20</td>
+                            <td>0.50</td>
+                            <td>410.0</td>
+                        </tr>
+                        <tr class="total-row">
+                            <td>TOTAL</td>
+                            <td>9278</td>
+                            <td>320</td>
+                            <td>110</td>
+                            <td>1050</td>
+                            <td>640ms</td>
+                            <td>0.01%</td>
+                            <td>79.8/sec</td>
+                            <td>44.70</td>
+                            <td>19.92</td>
+                            <td>596.1</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

@@ -31,6 +31,13 @@ public class CalendarController {
         return ResponseUtils.success(calendarService.createCalendar(request), localizationUtils.getLocalizedMessage(MessageConstants.CREATE_SUCCESSFULLY));
     }
 
+    @PostMapping("/create-simple")
+    @Operation(summary = "Create Calendar (Simple)", description = "Create a new calendar entry using simplified form")
+    @PreAuthorize("hasAnyAuthority('ORG_CALENDAR:ADD', 'ORG_ADMIN', 'HR')")
+    public ResponseEntity<Response<IDResponse<Long>>> createSimpleCalendar(@Valid @RequestBody SimpleCalendarRequest request) {
+        return ResponseUtils.success(calendarService.createSimpleCalendar(request), localizationUtils.getLocalizedMessage(MessageConstants.CREATE_SUCCESSFULLY));
+    }
+
     @GetMapping("/filter-view-candidate")
     @Operation(summary = "Filter View Candidate Calendars", description = "Filter calendars for viewing by candidates")
     @PreAuthorize("hasAnyAuthority('ORG_CALENDAR:VIEW')")

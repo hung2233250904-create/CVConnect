@@ -1,0 +1,20 @@
+-------------------------------------------------------------------------------
+Test set: com.cvconnect.selenium.CandidateStateFlowTest
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 18.70 s <<< FAILURE! -- in com.cvconnect.selenium.CandidateStateFlowTest
+com.cvconnect.selenium.CandidateStateFlowTest.ST_01_changeCandidateProcess -- Time elapsed: 16.58 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: 
+Đăng nhập thất bại. Lỗi: Expected condition failed: waiting for presence of any elements located by By.tagName: input (tried for 15 second(s) with 500 milliseconds interval)
+Build info: version: '4.21.0', revision: '79ed462ef4'
+System info: os.name: 'Windows 11', os.arch: 'amd64', os.version: '10.0', java.version: '19'
+Driver info: org.openqa.selenium.chrome.ChromeDriver
+Capabilities {acceptInsecureCerts: false, browserName: chrome, browserVersion: 147.0.7727.102, chrome: {chromedriverVersion: 147.0.7727.57 (b4f28b5637d0..., userDataDir: C:\Users\HOME\AppData\Local...}, fedcm:accounts: true, goog:chromeOptions: {debuggerAddress: localhost:51779}, goog:processID: 19368, networkConnectionEnabled: false, pageLoadStrategy: normal, platformName: windows, proxy: Proxy(), se:cdp: ws://localhost:51779/devtoo..., se:cdpVersion: 147.0.7727.102, setWindowRect: true, strictFileInteractability: false, timeouts: {implicit: 0, pageLoad: 300000, script: 30000}, unhandledPromptBehavior: dismiss and notify, webauthn:extension:credBlob: true, webauthn:extension:largeBlob: true, webauthn:extension:minPinLength: true, webauthn:extension:prf: true, webauthn:virtualAuthenticators: true}
+Session ID: c528ec76ed7e03f7a7fb463799829bc3
+	at org.junit.jupiter.api.AssertionUtils.fail(AssertionUtils.java:38)
+	at org.junit.jupiter.api.Assertions.fail(Assertions.java:138)
+	at com.cvconnect.selenium.CandidateStateFlowTest.login(CandidateStateFlowTest.java:97)
+	at com.cvconnect.selenium.CandidateStateFlowTest.ST_01_changeCandidateProcess(CandidateStateFlowTest.java:106)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:578)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+

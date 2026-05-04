@@ -116,8 +116,9 @@ public class Messages {
     public static final String ELIMINATE_REASON_REQUIRE = "eliminate.reason.require";
     public static final String COMMENTS_NOT_BLANK = "comments.not.blank";
     public static final String DATE_BEFORE_TODAY = "date.before.today";
+    public static final String SCHEDULE_CONFLICT = "schedule.conflict";
     public static final String JOB_AD_STATUS_NOT_NULL = "job.ad.status.not.null";
-
+    public static final String INVALID_INPUT = "invalid.input";
 
     /*
     * Other Messages

@@ -1,4 +1,5 @@
 version: '3.8'
+
 services:
   kafka:
     image: 'bitnamilegacy/kafka:3.7.0'

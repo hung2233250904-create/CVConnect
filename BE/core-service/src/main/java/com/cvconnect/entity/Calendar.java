@@ -16,8 +16,7 @@ import java.time.LocalTime;
 @Entity
 @Table(name = "calendar")
 public class Calendar extends BaseEntity {
-    @NotNull
-    @Column(name = "job_ad_process_id", nullable = false)
+    @Column(name = "job_ad_process_id")
     private Long jobAdProcessId;
 
     @Size(max = 100)
@@ -50,6 +49,7 @@ public class Calendar extends BaseEntity {
 
     @Column(name = "note", length = Integer.MAX_VALUE)
     private String note;
+
 
     @NotNull
     @Column(name = "creator_id", nullable = false)

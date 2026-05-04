@@ -1,4 +1,4 @@
-package com.cvconnect.repository;
+﻿package com.cvconnect.repository;
 
 import com.cvconnect.dto.calendar.CalendarDetailInViewCandidateProjection;
 import com.cvconnect.dto.calendar.CalendarFilterViewCandidateProjection;
@@ -87,4 +87,14 @@ public interface CalendarRepository extends JpaRepository<Calendar, Long> {
         where ja.hrContactId = :hrContactId and c.id = :calendarId
     """)
     boolean existsByCalendarIdAndHrContactId(Long calendarId, Long hrContactId);
+
+    @Query(value = """
+        select c.id from calendar c
+        join interview_panel ip on ip.calendar_id = c.id
+        where c.date = :date
+        and ip.interviewer_id = :interviewerId
+        and (:startTime >= c.time_from and :startTime < (c.time_from + (c.duration_minutes * interval '1 minute')))
+    """, nativeQuery = true)
+    List<Long> findOverlappingSchedules(java.time.LocalDate date, java.time.LocalTime startTime, Long interviewerId);
 }
+

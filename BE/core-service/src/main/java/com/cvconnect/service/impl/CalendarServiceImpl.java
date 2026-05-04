@@ -14,6 +14,7 @@ import com.cvconnect.dto.internal.response.UserDto;
 import com.cvconnect.dto.interviewPanel.InterviewPanelDto;
 import com.cvconnect.dto.jobAd.JobAdDto;
 import com.cvconnect.dto.jobAd.JobAdProcessDto;
+import com.cvconnect.dto.jobAdCandidate.JobAdCandidateDto;
 import com.cvconnect.dto.org.OrgAddressDto;
 import com.cvconnect.entity.Calendar;
 import com.cvconnect.enums.*;
@@ -235,6 +236,118 @@ public class CalendarServiceImpl implements CalendarService {
                 .build();
     }
 
+    @Override
+    @Transactional
+    public IDResponse<Long> createSimpleCalendar(SimpleCalendarRequest request) {
+        System.out.println("DEBUG CREATE CALENDAR PAYLOAD: " + request);
+        Long orgId = restTemplateClient.validOrgMember();
+        Long userId = WebUtils.getCurrentUserId();
+        
+        // Validate input
+        if (request.getType() == null) {
+            System.out.println("DEBUG: type is null");
+            throw new AppException(CoreErrorCode.INVALID_INPUT);
+        }
+        
+        // Parse startTime (format: yyyy-MM-ddThh:mm)
+        LocalDateTime startDateTime;
+        try {
+            startDateTime = LocalDateTime.parse(request.getStartTime().replace(" ", "T"));
+        } catch (Exception e) {
+            System.out.println("DEBUG: startTime parse error: " + request.getStartTime());
+            throw e;
+        }
+        LocalDate date = startDateTime.toLocalDate();
+        LocalTime timeFrom = startDateTime.toLocalTime();
+        
+        // Validate date is not in the past
+        if (date.isBefore(LocalDate.now())) {
+            System.out.println("DEBUG: date is in the past: " + date);
+            throw new AppException(CoreErrorCode.DATE_BEFORE_TODAY);
+        }
+        
+        // Validate type-specific requirements
+        Long orgAddressId = null;
+        if (request.getType() == CalendarType.INTERVIEW_OFFLINE) {
+            if (request.getAddress() == null || request.getAddress().trim().isEmpty()) {
+                throw new AppException(CoreErrorCode.MEETING_ADDRESS_NOT_NULL);
+            }
+            // For simplified calendar, create a temporary address entry or use default
+            // This can be enhanced later to create actual address entries
+        } else if (request.getType() == CalendarType.INTERVIEW_ONLINE) {
+            if (request.getMeetingLink() == null || request.getMeetingLink().trim().isEmpty()) {
+                throw new AppException(CoreErrorCode.MEETING_LINK_NOT_NULL);
+            }
+        }
+        
+        // Parse interviewer ID
+        Long interviewerId = null;
+        try {
+            interviewerId = Long.parseLong(request.getInterviewerId());
+        } catch (Exception e) {
+            System.out.println("DEBUG: interviewerId parse error: " + request.getInterviewerId());
+            throw new AppException(CoreErrorCode.INVALID_INPUT);
+        }
+        
+        // Check for scheduling conflicts (overlap detection)
+        validateScheduleOverlap(interviewerId, date, timeFrom);
+        
+        // Create calendar entry
+        Calendar calendar = new Calendar();
+        calendar.setCalendarType(request.getType().name());
+        calendar.setDate(date);
+        calendar.setTimeFrom(timeFrom);
+        calendar.setDurationMinutes(60); // Default 1 hour
+        calendar.setMeetingLink(request.getMeetingLink());
+        calendar.setNote(request.getAddress()); // Store address in note for simplified calendar
+        calendar.setCreatorId(userId);
+
+        JobAdCandidateDto jac = null;
+        if (request.getCandidateId() != null) {
+            jac = jobAdCandidateService.findById(request.getCandidateId());
+            if (jac != null && jac.getJobAdProcessCandidates() != null) {
+                Long currentProcessId = jac.getJobAdProcessCandidates().stream()
+                        .filter(com.cvconnect.dto.jobAdCandidate.JobAdProcessCandidateDto::getIsCurrentProcess)
+                        .map(com.cvconnect.dto.jobAdCandidate.JobAdProcessCandidateDto::getJobAdProcessId)
+                        .findFirst()
+                        .orElse(null);
+                if (currentProcessId != null) {
+                    calendar.setJobAdProcessId(currentProcessId);
+                }
+            }
+        }
+        calendarRepository.save(calendar);
+
+        if (jac != null) {
+            CalendarCandidateInfoDto cci = new CalendarCandidateInfoDto();
+            cci.setCalendarId(calendar.getId());
+            cci.setCandidateInfoId(jac.getCandidateInfoId());
+            cci.setDate(date);
+            cci.setTimeFrom(timeFrom);
+            cci.setTimeTo(timeFrom.plusMinutes(60));
+            calendarCandidateInfoService.create(List.of(cci));
+        }
+        
+        // Add interviewer panel
+        InterviewPanelDto panel = new InterviewPanelDto();
+        panel.setCalendarId(calendar.getId());
+        panel.setInterviewerId(interviewerId);
+        interviewPanelService.create(List.of(panel));
+        
+        return IDResponse.<Long>builder()
+                .id(calendar.getId())
+                .build();
+    }
+    
+    private void validateScheduleOverlap(Long interviewerId, LocalDate date, LocalTime startTime) {
+        // Check if interviewer has any overlapping schedule on the same day and time
+        List<Long> overlappingSchedules = calendarRepository.findOverlappingSchedules(date, startTime, interviewerId);
+        
+        if (!overlappingSchedules.isEmpty()) {
+            throw new AppException(CoreErrorCode.SCHEDULE_CONFLICT);
+        }
+    }
+    
     @Override
     public List<CalendarFitterViewCandidateResponse> filterViewCandidateCalendars(CalendarFilterRequest request) {
         if(request.getJobAdCandidateId() == null){
